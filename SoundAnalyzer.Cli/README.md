@@ -98,12 +98,6 @@ SoundAnalyzer.Cli.exe --window-size <len> --hop <len> --input-dir <path> --db-fi
 - `--target-sampling` 指定時は ffmpeg の `-ar <rate>` を解析パイプラインにだけ適用します。
 - 入力音声ファイル自体の再エンコードやビット深度変更は行いません。
 
-## 破壊的変更
-
-- `sfft-analysis` モードは廃止しました（`Unsupported mode`）。
-- 既定 STFT テーブル名を `T_SFFTAnalysis` から `T_STFTAnalysis` へ変更しました。
-- 旧名称との互換レイヤーは提供していません。
-
 ## SQLite ジャーナル運用
 
 - 初期化時に `PRAGMA journal_mode=WAL` を試行します。

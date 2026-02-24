@@ -107,11 +107,6 @@ dotnet run --project SoundAnalyzer.Cli -- \
   --upsert
 ```
 
-## 破壊的変更（STFT命名統一）
-
-- `sfft-analysis` モードは廃止され、`stft-analysis` のみ受理します。
-- STFT の既定テーブル名は `T_SFFTAnalysis` から `T_STFTAnalysis` へ変更されました。
-
 ## ライセンス
 
 本リポジトリのソースコードは `Kabayaki-Kappikapi License v2.0` を適用しています。
