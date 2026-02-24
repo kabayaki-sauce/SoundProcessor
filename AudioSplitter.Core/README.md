@@ -16,6 +16,9 @@ CLI 入力の表現から切り離し、分割仕様の決定ロジックを集�
 4. 境界算出 (`SegmentPlanner`)
 5. セグメント出力 (`IAudioSegmentExporter`)
 
+`SplitAudioUseCase.ExecuteAsync` は任意の進捗コールバックを受け取り、
+`Resolve/Probe/Analyze/Export` の phase 進捗を通知できます。
+
 ## 仕様ポイント
 
 - 無音判定はフレーム単位の peak dBFS

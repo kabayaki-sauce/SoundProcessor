@@ -18,6 +18,7 @@ internal static class ConsoleTexts
     public const string DeleteCurrentOption = "--delete-current";
     public const string RecursiveOption = "--recursive";
     public const string FfmpegPathOption = "--ffmpeg-path";
+    public const string ProgressOption = "--progress";
     public const string HelpOption = "--help";
     public const string ShortHelpOption = "-h";
 
@@ -49,6 +50,7 @@ Optional:
   --delete-current          SFFT mode only. Drop current table before processing
   --recursive               SFFT mode only. Scan files recursively from input-dir
   --ffmpeg-path <path>      ffmpeg executable path or directory containing ffmpeg/ffprobe
+  --progress                Show two-line progress bars on interactive stderr
   --help, -h                Show help
 
 Examples:

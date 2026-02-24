@@ -29,6 +29,7 @@ internal static partial class CommandLineParser
         bool skipDuplicate = false;
         bool deleteCurrent = false;
         bool recursive = false;
+        bool progress = false;
 
         List<string> errors = new();
 
@@ -61,6 +62,12 @@ internal static partial class CommandLineParser
             if (MatchesOption(token, ConsoleTexts.RecursiveOption))
             {
                 recursive = true;
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.ProgressOption))
+            {
+                progress = true;
                 continue;
             }
 
@@ -321,7 +328,8 @@ internal static partial class CommandLineParser
             binCount,
             deleteCurrent,
             recursive,
-            ffmpegPath);
+            ffmpegPath,
+            progress);
         return CommandLineParseResult.Success(arguments);
     }
 

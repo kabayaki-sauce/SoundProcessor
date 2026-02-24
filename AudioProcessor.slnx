@@ -1,6 +1,8 @@
 <Solution>
   <Project Path="AudioProcessor.Tests/AudioProcessor.Tests.csproj" />
   <Project Path="AudioProcessor/AudioProcessor.csproj" />
+  <Project Path="Cli.Shared/Cli.Shared.csproj" />
+  <Project Path="Cli.Shared.Tests/Cli.Shared.Tests.csproj" />
   <Project Path="AudioSplitter.Cli/AudioSplitter.Cli.csproj" />
   <Project Path="AudioSplitter.Cli.Tests/AudioSplitter.Cli.Tests.csproj" />
   <Project Path="AudioSplitter.Core.Tests/AudioSplitter.Core.Tests.csproj" />

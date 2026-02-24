@@ -13,12 +13,14 @@ AudioProcessor は、オーディオ解析・変換ツール群を提供する .
 | パス | 種別 | 役割 |
 |---|---|---|
 | `AudioProcessor` | Library | 外部オーディオ処理エンジン連携、プローブ、PCM ストリーム読取、セグメント出力などの共通基盤 |
+| `Cli.Shared` | Library | CLI 表示共通化（2段プログレス表示、TTY判定、stderr描画） |
 | `AudioSplitter.Core` | Library | 無音分割ドメイン、境界計算、分割ユースケース |
 | `AudioSplitter.Cli` | CLI | 無音分割のコマンドライン実行層 |
 | `PeakAnalyzer.Core` | Library | hop/window ベースのピーク dB 窓解析コア |
 | `SFFTAnalyzer.Core` | Library | hop/window ベースの短時間FFT band解析コア |
 | `SoundAnalyzer.Cli` | CLI | ディレクトリ一括解析と SQLite 永続化 |
 | `AudioProcessor.Tests` | Test | `AudioProcessor` の単体テスト |
+| `Cli.Shared.Tests` | Test | `Cli.Shared` の単体テスト |
 | `AudioSplitter.Core.Tests` | Test | `AudioSplitter.Core` の単体テスト |
 | `AudioSplitter.Cli.Tests` | Test | `AudioSplitter.Cli` の単体テスト |
 | `PeakAnalyzer.Core.Tests` | Test | `PeakAnalyzer.Core` の単体テスト |
@@ -116,6 +118,7 @@ dotnet run --project SoundAnalyzer.Cli -- \
 ## 本体プロジェクトREADME
 
 - [`AudioProcessor/README.md`](AudioProcessor/README.md)
+- [`Cli.Shared/README.md`](Cli.Shared/README.md)
 - [`AudioSplitter.Core/README.md`](AudioSplitter.Core/README.md)
 - [`AudioSplitter.Cli/README.md`](AudioSplitter.Cli/README.md)
 - [`PeakAnalyzer.Core/README.md`](PeakAnalyzer.Core/README.md)

@@ -24,6 +24,7 @@ AudioSplitter.Cli.exe (--input-file <path> | --input-dir <path>) --output-dir <p
 | `--resume-offset <time>` | 任意 | 次有音開始に対する次ファイル開始補正 |
 | `--resolution-type <spec>` | 任意 | `16bit|24bit|32float,<rate>hz` |
 | `--ffmpeg-path <path>` | 任意 | 音声処理ツールのパスまたは格納ディレクトリ（現行実装では ffmpeg/ffprobe） |
+| `--progress` | 任意 | 対話端末で2段プログレス表示を有効化（`stderr` 出力） |
 | `-y` | 任意 | 上書き確認を省略 |
 | `--help`, `-h` | 任意 | ヘルプ表示 |
 
@@ -45,5 +46,5 @@ AudioSplitter.Cli.exe --input-file /path/to/file.wav --output-dir /path/to/out -
 ```
 
 ```powershell
-AudioSplitter.Cli.exe --input-dir /path/to/inputdir --recursive --output-dir /path/to/outputdir --level -48.0 --duration 2000ms
+AudioSplitter.Cli.exe --input-dir /path/to/inputdir --recursive --output-dir /path/to/outputdir --level -48.0 --duration 2000ms --progress
 ```

@@ -1,3 +1,5 @@
+using Cli.Shared.Application.Models;
+using Cli.Shared.Application.Ports;
 using AudioSplitter.Cli.Infrastructure.FileSystem;
 using AudioSplitter.Cli.Presentation.Cli.Arguments;
 using AudioSplitter.Core.Application.Models;
@@ -18,7 +20,16 @@ internal sealed class SplitAudioBatchExecutor
         CommandLineArguments arguments,
         CancellationToken cancellationToken)
     {
+        return await ExecuteAsync(arguments, SilentProgressDisplay.Instance, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<SplitAudioBatchSummary> ExecuteAsync(
+        CommandLineArguments arguments,
+        IProgressDisplay progressDisplay,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentNullException.ThrowIfNull(progressDisplay);
 
         IReadOnlyList<ResolvedInputAudioFile> targets = ResolveTargets(arguments);
         int processedFileCount = 0;
@@ -48,7 +59,10 @@ internal sealed class SplitAudioBatchExecutor
                 arguments.OverwriteWithoutPrompt);
 
             SplitAudioExecutionResult result = await splitAudioUseCase
-                .ExecuteAsync(request, cancellationToken)
+                .ExecuteAsync(
+                    request,
+                    cancellationToken,
+                    progress => ReportProgress(progressDisplay, progress, i + 1, targets.Count, target.InputFilePath))
                 .ConfigureAwait(false);
 
             processedFileCount++;
@@ -64,6 +78,68 @@ internal sealed class SplitAudioBatchExecutor
             skippedCount,
             promptedCount,
             detectedSegmentCount);
+    }
+
+    private static void ReportProgress(
+        IProgressDisplay progressDisplay,
+        SplitAudioProgress progress,
+        int fileIndex,
+        int fileCount,
+        string inputFilePath)
+    {
+        ArgumentNullException.ThrowIfNull(progressDisplay);
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputFilePath);
+
+        double phaseRatio = ToRatio(progress.Processed, progress.Total);
+        double topRatio = (GetPhaseOrder(progress.Phase) + phaseRatio) / 4.0;
+
+        string phaseName = progress.Phase.ToString();
+        string fileName = Path.GetFileName(inputFilePath);
+        string topLabel = string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"File {fileIndex}/{fileCount} {fileName} [{phaseName}]");
+        string bottomLabel = progress.Total.HasValue
+            ? string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"{phaseName} {Math.Min(progress.Processed, progress.Total.Value)}/{progress.Total.Value}")
+            : string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"{phaseName} {progress.Processed}");
+
+        progressDisplay.Report(new DualProgressState(topLabel, topRatio, bottomLabel, phaseRatio));
+    }
+
+    private static int GetPhaseOrder(SplitAudioPhase phase)
+    {
+        return phase switch
+        {
+            SplitAudioPhase.Resolve => 0,
+            SplitAudioPhase.Probe => 1,
+            SplitAudioPhase.Analyze => 2,
+            SplitAudioPhase.Export => 3,
+            _ => 0,
+        };
+    }
+
+    private static double ToRatio(long processed, long? total)
+    {
+        if (!total.HasValue || total.Value <= 0)
+        {
+            return 0;
+        }
+
+        double ratio = (double)processed / total.Value;
+        if (ratio <= 0)
+        {
+            return 0;
+        }
+
+        if (ratio >= 1)
+        {
+            return 1;
+        }
+
+        return ratio;
     }
 
     private static IReadOnlyList<ResolvedInputAudioFile> ResolveTargets(CommandLineArguments arguments)
@@ -96,5 +172,23 @@ internal sealed class SplitAudioBatchExecutor
         }
 
         return Path.Combine(outputRootDirectoryPath, relativeDirectoryPath);
+    }
+
+    private sealed class SilentProgressDisplay : IProgressDisplay
+    {
+        public static SilentProgressDisplay Instance { get; } = new();
+
+        private SilentProgressDisplay()
+        {
+        }
+
+        public void Report(DualProgressState state)
+        {
+            _ = state;
+        }
+
+        public void Complete()
+        {
+        }
     }
 }

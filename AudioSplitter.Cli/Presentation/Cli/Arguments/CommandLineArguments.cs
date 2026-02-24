@@ -15,7 +15,8 @@ internal sealed class CommandLineArguments
         ResolutionType? resolutionType,
         string? ffmpegPath,
         bool overwriteWithoutPrompt,
-        bool recursive)
+        bool recursive,
+        bool progress)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputDirectoryPath);
 
@@ -42,6 +43,7 @@ internal sealed class CommandLineArguments
         FfmpegPath = ffmpegPath;
         OverwriteWithoutPrompt = overwriteWithoutPrompt;
         Recursive = recursive;
+        Progress = progress;
     }
 
     public string? InputFilePath { get; }
@@ -65,4 +67,6 @@ internal sealed class CommandLineArguments
     public bool OverwriteWithoutPrompt { get; }
 
     public bool Recursive { get; }
+
+    public bool Progress { get; }
 }

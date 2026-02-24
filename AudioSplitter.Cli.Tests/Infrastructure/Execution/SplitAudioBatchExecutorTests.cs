@@ -186,7 +186,8 @@ public sealed class SplitAudioBatchExecutorTests
             resolutionType: null,
             ffmpegPath: null,
             overwriteWithoutPrompt: true,
-            recursive: false);
+            recursive: false,
+            progress: false);
     }
 
     private static CommandLineArguments CreateInputDirectoryArguments(
@@ -205,7 +206,8 @@ public sealed class SplitAudioBatchExecutorTests
             resolutionType: null,
             ffmpegPath: null,
             overwriteWithoutPrompt: true,
-            recursive);
+            recursive,
+            progress: false);
     }
 
     private static string CreateTempDirectory()
@@ -264,7 +266,8 @@ public sealed class SplitAudioBatchExecutorTests
             AudioStreamInfo streamInfo,
             double levelDb,
             TimeSpan duration,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            Action<SilenceAnalysisProgress>? progressCallback = null)
         {
             return Task.FromResult(analysisResult);
         }

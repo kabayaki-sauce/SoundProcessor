@@ -169,6 +169,61 @@ public sealed class SplitAudioUseCaseTests
         }
     }
 
+    [Fact]
+    public async Task ExecuteAsync_ShouldReportPhaseProgressInOrder()
+    {
+        string inputPath = CreateTempInputFile();
+        try
+        {
+            FakeSegmentExporter exporter = new();
+            SilenceAnalysisResult analysis = new(
+                10_000,
+                0,
+                new[] { new SilenceRun(3_000, 6_000) });
+            SplitAudioUseCase useCase = BuildUseCase(
+                streamInfo: new AudioStreamInfo(1_000, 2, AudioPcmBitDepth.Pcm16, 10_000),
+                analysisResult: analysis,
+                exporter: exporter,
+                overwrite: new AlwaysOverwriteService());
+
+            SplitAudioRequest request = new(
+                inputPath,
+                Path.GetTempPath(),
+                -48.0,
+                TimeSpan.FromMilliseconds(2_000),
+                TimeSpan.Zero,
+                TimeSpan.Zero,
+                resolutionType: null,
+                ffmpegPath: null,
+                overwriteWithoutPrompt: true);
+            List<SplitAudioProgress> progressEvents = new();
+
+            _ = await useCase.ExecuteAsync(request, CancellationToken.None, progressEvents.Add);
+
+            Assert.NotEmpty(progressEvents);
+            Assert.Equal(SplitAudioPhase.Resolve, progressEvents[0].Phase);
+            Assert.Contains(progressEvents, progress => progress.Phase == SplitAudioPhase.Probe);
+            Assert.Contains(progressEvents, progress => progress.Phase == SplitAudioPhase.Analyze);
+            Assert.Equal(SplitAudioPhase.Export, progressEvents[^1].Phase);
+
+            List<SplitAudioProgress> analyzeEvents = progressEvents
+                .Where(progress => progress.Phase == SplitAudioPhase.Analyze)
+                .ToList();
+            Assert.True(analyzeEvents.Count >= 2);
+            Assert.True(analyzeEvents[^1].Processed >= analyzeEvents[0].Processed);
+
+            List<SplitAudioProgress> exportEvents = progressEvents
+                .Where(progress => progress.Phase == SplitAudioPhase.Export)
+                .ToList();
+            Assert.True(exportEvents.Count >= 2);
+            Assert.True(exportEvents[^1].Processed >= 1);
+        }
+        finally
+        {
+            File.Delete(inputPath);
+        }
+    }
+
     private static SplitAudioUseCase BuildUseCase(
         AudioStreamInfo streamInfo,
         SilenceAnalysisResult analysisResult,
@@ -232,8 +287,17 @@ public sealed class SplitAudioUseCaseTests
             AudioStreamInfo streamInfo,
             double levelDb,
             TimeSpan duration,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            Action<SilenceAnalysisProgress>? progressCallback = null)
         {
+            if (progressCallback is not null)
+            {
+                long totalFrames = streamInfo.EstimatedTotalFrames ?? analysisResult.TotalFrames;
+                long midFrames = Math.Max(1, totalFrames / 2);
+                progressCallback.Invoke(new SilenceAnalysisProgress(midFrames, totalFrames));
+                progressCallback.Invoke(new SilenceAnalysisProgress(totalFrames, totalFrames));
+            }
+
             return Task.FromResult(analysisResult);
         }
     }

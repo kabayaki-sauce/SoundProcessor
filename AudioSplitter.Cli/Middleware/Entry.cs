@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Cli.Shared.Application.Ports;
+using Cli.Shared.Extensions;
 using AudioProcessor.Application.Errors;
 using AudioSplitter.Cli.Infrastructure.Execution;
 using AudioSplitter.Core.Application.Errors;
@@ -45,11 +47,16 @@ internal static class Entry
         try
         {
             SplitAudioBatchExecutor executor = host.Services.GetRequiredService<SplitAudioBatchExecutor>();
+            IProgressDisplayFactory progressDisplayFactory = host.Services.GetRequiredService<IProgressDisplayFactory>();
+            IProgressDisplay progressDisplay = progressDisplayFactory.Create(parseResult.Arguments.Progress);
             SplitAudioBatchSummary summary = executor.ExecuteAsync(
                     parseResult.Arguments,
+                    progressDisplay,
                     cancellationTokenSource.Token)
                 .GetAwaiter()
                 .GetResult();
+            progressDisplay.Complete();
+
             string serialized = JsonSerializer.Serialize(summary);
             System.Console.Out.WriteLine(serialized);
             return 0;
@@ -84,6 +91,7 @@ internal static class Entry
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
 
+        builder.Services.AddCliShared();
         builder.Services.AddAudioSplitterCore();
         builder.Services.AddSingleton<IOverwriteConfirmationService, OverwriteConfirmationService>();
         builder.Services.AddSingleton<SplitAudioBatchExecutor>();
@@ -109,4 +117,3 @@ internal static class Entry
         public IReadOnlyList<string> Errors { get; }
     }
 }
-

@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Cli.Shared.Application.Ports;
+using Cli.Shared.Extensions;
 using AudioProcessor.Application.Errors;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,7 +49,10 @@ internal static class Entry
         try
         {
             CommandLineArguments arguments = parseResult.Arguments;
-            object summary = Execute(arguments, host.Services, cancellationTokenSource.Token);
+            IProgressDisplayFactory progressDisplayFactory = host.Services.GetRequiredService<IProgressDisplayFactory>();
+            IProgressDisplay progressDisplay = progressDisplayFactory.Create(arguments.Progress);
+            object summary = Execute(arguments, host.Services, progressDisplay, cancellationTokenSource.Token);
+            progressDisplay.Complete();
 
             string serialized = JsonSerializer.Serialize(summary);
             System.Console.Out.WriteLine(serialized);
@@ -89,19 +94,24 @@ internal static class Entry
         }
     }
 
-    private static object Execute(CommandLineArguments arguments, IServiceProvider services, CancellationToken cancellationToken)
+    private static object Execute(
+        CommandLineArguments arguments,
+        IServiceProvider services,
+        IProgressDisplay progressDisplay,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(arguments);
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(progressDisplay);
 
         return arguments.Mode switch
         {
             ConsoleTexts.PeakAnalysisMode => services.GetRequiredService<PeakAnalysisBatchExecutor>()
-                .ExecuteAsync(arguments, cancellationToken)
+                .ExecuteAsync(arguments, progressDisplay, cancellationToken)
                 .GetAwaiter()
                 .GetResult(),
             ConsoleTexts.SfftAnalysisMode => services.GetRequiredService<SfftAnalysisBatchExecutor>()
-                .ExecuteAsync(arguments, cancellationToken)
+                .ExecuteAsync(arguments, progressDisplay, cancellationToken)
                 .GetAwaiter()
                 .GetResult(),
             _ => throw new CliException(CliErrorCode.UnsupportedMode, arguments.Mode),
@@ -112,6 +122,7 @@ internal static class Entry
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
 
+        builder.Services.AddCliShared();
         builder.Services.AddPeakAnalyzerCore();
         builder.Services.AddSfftAnalyzerCore();
         builder.Services.AddSingleton<PeakAnalysisBatchExecutor>();
