@@ -223,14 +223,12 @@ internal static partial class CommandLineParser
             errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidModePrefix, modeValue));
         }
 
-        AnalysisLengthArgument windowLength = default;
-        if (!TryParseLength(windowSizeText!, out windowLength))
+        if (!TryParseLength(windowSizeText!, out AnalysisLengthArgument windowLength))
         {
             errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidTimePrefix, windowSizeText!));
         }
 
-        AnalysisLengthArgument hopLength = default;
-        if (!TryParseLength(hopText!, out hopLength))
+        if (!TryParseLength(hopText!, out AnalysisLengthArgument hopLength))
         {
             errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidTimePrefix, hopText!));
         }

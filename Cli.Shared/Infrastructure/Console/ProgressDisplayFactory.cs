@@ -28,6 +28,7 @@ internal sealed class ProgressDisplayFactory : IProgressDisplayFactory
             return NoOpProgressDisplay.Instance;
         }
 
+        consoleEnvironment.EnsureUtf8OutputEncoding();
         return new DualLineProgressDisplay(consoleEnvironment.ErrorWriter);
     }
 }

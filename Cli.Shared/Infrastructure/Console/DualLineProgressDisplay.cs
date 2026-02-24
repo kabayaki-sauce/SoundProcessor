@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using Cli.Shared.Application.Models;
 using Cli.Shared.Application.Ports;
 
@@ -21,7 +20,6 @@ internal sealed class DualLineProgressDisplay : IProgressDisplay
     public DualLineProgressDisplay(TextWriter writer)
     {
         this.writer = writer ?? throw new ArgumentNullException(nameof(writer));
-        System.Console.OutputEncoding = Encoding.UTF8;
     }
 
     public void Report(DualProgressState state)
