@@ -52,14 +52,7 @@ internal sealed class DualLineProgressDisplay : IProgressDisplay
 
             if (renderedLineCount > 0 && originTop >= 0)
             {
-                try
-                {
-                    System.Console.SetCursorPosition(0, originTop + renderedLineCount);
-                }
-                catch (ArgumentOutOfRangeException)
-                {
-                    // Keep best-effort behavior when terminal size changes.
-                }
+                TrySetCursorPosition(0, originTop + renderedLineCount);
             }
         }
     }
@@ -71,18 +64,11 @@ internal sealed class DualLineProgressDisplay : IProgressDisplay
 
         if (originTop < 0)
         {
-            originTop = System.Console.CursorTop;
+            originTop = GetCurrentCursorTop();
         }
         else
         {
-            try
-            {
-                System.Console.SetCursorPosition(0, originTop);
-            }
-            catch (ArgumentOutOfRangeException)
-            {
-                originTop = System.Console.CursorTop;
-            }
+            TrySetCursorPosition(0, originTop);
         }
 
         int width = ResolveWidth();
@@ -160,9 +146,33 @@ internal sealed class DualLineProgressDisplay : IProgressDisplay
         {
             return Math.Max(40, System.Console.BufferWidth - 1);
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or ArgumentOutOfRangeException)
         {
             return 120;
+        }
+    }
+
+    private static int GetCurrentCursorTop()
+    {
+        try
+        {
+            return System.Console.CursorTop;
+        }
+        catch (Exception ex) when (ex is IOException or ArgumentOutOfRangeException)
+        {
+            return 0;
+        }
+    }
+
+    private void TrySetCursorPosition(int left, int top)
+    {
+        try
+        {
+            System.Console.SetCursorPosition(left, top);
+        }
+        catch (Exception ex) when (ex is IOException or ArgumentOutOfRangeException)
+        {
+            originTop = GetCurrentCursorTop();
         }
     }
 }

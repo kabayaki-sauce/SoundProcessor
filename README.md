@@ -20,6 +20,7 @@ AudioProcessor は、オーディオ解析・変換ツール群を提供する .
 | `SFFTAnalyzer.Core` | Library | hop/window ベースの短時間FFT band解析コア |
 | `SoundAnalyzer.Cli` | CLI | ディレクトリ一括解析と SQLite 永続化 |
 | `AudioProcessor.Tests` | Test | `AudioProcessor` の単体テスト |
+| `Cli.Shared.Tests` | Test | `Cli.Shared` の単体テスト |
 | `AudioSplitter.Core.Tests` | Test | `AudioSplitter.Core` の単体テスト |
 | `AudioSplitter.Cli.Tests` | Test | `AudioSplitter.Cli` の単体テスト |
 | `PeakAnalyzer.Core.Tests` | Test | `PeakAnalyzer.Core` の単体テスト |
