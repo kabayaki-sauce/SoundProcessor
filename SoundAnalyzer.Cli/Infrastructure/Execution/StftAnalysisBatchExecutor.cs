@@ -146,6 +146,7 @@ internal sealed class StftAnalysisBatchExecutor
                                     arguments,
                                     binCount,
                                     toolPaths,
+                                    progressTracker,
                                     queuedWriter,
                                     executionToken)
                                 .ConfigureAwait(false);
@@ -210,12 +211,14 @@ internal sealed class StftAnalysisBatchExecutor
         CommandLineArguments arguments,
         int binCount,
         FfmpegToolPaths toolPaths,
+        SoundAnalyzerProgressTracker progressTracker,
         IStftAnalysisPointWriter queuedWriter,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(arguments);
         ArgumentNullException.ThrowIfNull(toolPaths);
+        ArgumentNullException.ThrowIfNull(progressTracker);
         ArgumentNullException.ThrowIfNull(queuedWriter);
 
         AudioStreamInfo streamInfo = await audioProbeService
@@ -225,6 +228,20 @@ internal sealed class StftAnalysisBatchExecutor
         int analysisSampleRate = arguments.TargetSamplingHz ?? streamInfo.SampleRate;
         long windowSamples = ResolveSamples(arguments.WindowValue, arguments.WindowUnit, analysisSampleRate);
         long hopSamples = ResolveSamples(arguments.HopValue, arguments.HopUnit, analysisSampleRate);
+
+        bool estimated = BatchExecutionSupport.TryEstimateStftPointCountPerFile(
+            streamInfo,
+            analysisSampleRate,
+            hopSamples,
+            out long expectedPointCount);
+        if (estimated)
+        {
+            progressTracker.SetSongExpectedPoints(target.Name, expectedPointCount);
+        }
+        else
+        {
+            progressTracker.MarkSongExpectedPointsUnknown(target.Name);
+        }
 
         StftAnalysisRequest request = new(
             target.FilePath,

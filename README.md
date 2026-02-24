@@ -11,7 +11,7 @@ AudioProcessor は、オーディオ解析・変換ツール群を提供する .
   - `sample(s)` を1つでも使う場合は `--target-sampling <n>hz` が必須
   - STFT bin は `bin_no` / `db` の縦持ち行として保存（列数上限依存を回避）
   - `--stft-proc-threads` / `--stft-file-threads` / `--insert-queue-size` で並列・キュー制御
-- `--show-progress` は interactive な `pwsh/cmd` で、Songs/Threads/Queue の詳細進捗を `stderr` に表示
+- `--show-progress` は interactive な `pwsh/cmd` で、Songs/Threads/Queue の詳細進捗を `stderr` に表示（Thread行は単一ゲージで Insert=緑 / Analyze=白 / 未処理=斑点）
 
 ## プロジェクト構成
 

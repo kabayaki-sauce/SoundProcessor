@@ -1,5 +1,8 @@
 using System.Runtime.ExceptionServices;
 using System.Threading.Channels;
+using AudioProcessor.Application.Models;
+using AudioProcessor.Application.Ports;
+using AudioProcessor.Domain.Models;
 using PeakAnalyzer.Core.Application.Models;
 using PeakAnalyzer.Core.Application.Ports;
 using PeakAnalyzer.Core.Application.UseCases;
@@ -14,10 +17,17 @@ namespace SoundAnalyzer.Cli.Infrastructure.Execution;
 internal sealed class PeakAnalysisBatchExecutor
 {
     private readonly PeakAnalysisUseCase peakAnalysisUseCase;
+    private readonly IFfmpegLocator ffmpegLocator;
+    private readonly IAudioProbeService audioProbeService;
 
-    public PeakAnalysisBatchExecutor(PeakAnalysisUseCase peakAnalysisUseCase)
+    public PeakAnalysisBatchExecutor(
+        PeakAnalysisUseCase peakAnalysisUseCase,
+        IFfmpegLocator ffmpegLocator,
+        IAudioProbeService audioProbeService)
     {
         this.peakAnalysisUseCase = peakAnalysisUseCase ?? throw new ArgumentNullException(nameof(peakAnalysisUseCase));
+        this.ffmpegLocator = ffmpegLocator ?? throw new ArgumentNullException(nameof(ffmpegLocator));
+        this.audioProbeService = audioProbeService ?? throw new ArgumentNullException(nameof(audioProbeService));
     }
 
 #pragma warning disable CA1031
@@ -48,6 +58,12 @@ internal sealed class PeakAnalysisBatchExecutor
 
         using SqlitePeakAnalysisStore store = new(arguments.DbFilePath, arguments.TableName, conflictMode);
         store.Initialize();
+
+        FfmpegToolPaths? progressProbeToolPaths = null;
+        if (arguments.ShowProgress)
+        {
+            progressProbeToolPaths = ffmpegLocator.Resolve(arguments.FfmpegPath);
+        }
 
         using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         CancellationToken executionToken = linkedCts.Token;
@@ -122,6 +138,17 @@ internal sealed class PeakAnalysisBatchExecutor
                         progressTracker.SetWorkerSong(capturedWorkerId, song.Name);
                         try
                         {
+                            if (progressProbeToolPaths is not null)
+                            {
+                                await ConfigureExpectedPointsForSongAsync(
+                                        song,
+                                        progressProbeToolPaths,
+                                        arguments.HopMs,
+                                        progressTracker,
+                                        executionToken)
+                                    .ConfigureAwait(false);
+                            }
+
                             await ProcessSongAsync(song, arguments, queuedWriter, executionToken).ConfigureAwait(false);
                             progressTracker.MarkWorkerAnalyzeCompleted(capturedWorkerId);
                         }
@@ -214,6 +241,41 @@ internal sealed class PeakAnalysisBatchExecutor
                         .ConfigureAwait(false);
                 })
             .ConfigureAwait(false);
+    }
+
+    private async Task ConfigureExpectedPointsForSongAsync(
+        SongBatch song,
+        FfmpegToolPaths toolPaths,
+        long hopMs,
+        SoundAnalyzerProgressTracker progressTracker,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(song);
+        ArgumentNullException.ThrowIfNull(toolPaths);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hopMs);
+        ArgumentNullException.ThrowIfNull(progressTracker);
+
+        long expectedPointCount = 0;
+        for (int i = 0; i < song.Targets.Count; i++)
+        {
+            AudioStreamInfo streamInfo = await audioProbeService
+                .ProbeAsync(toolPaths, song.Targets[i].FilePath, cancellationToken)
+                .ConfigureAwait(false);
+
+            bool estimated = BatchExecutionSupport.TryEstimatePeakPointCountPerTarget(
+                streamInfo,
+                hopMs,
+                out long targetExpectedPointCount);
+            if (!estimated)
+            {
+                progressTracker.MarkSongExpectedPointsUnknown(song.Name);
+                return;
+            }
+
+            expectedPointCount = checked(expectedPointCount + targetExpectedPointCount);
+        }
+
+        progressTracker.SetSongExpectedPoints(song.Name, expectedPointCount);
     }
 
     private static List<SongBatch> BuildSongBatches(IReadOnlyList<StemAudioFile> files)

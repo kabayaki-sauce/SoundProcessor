@@ -34,7 +34,7 @@ SoundAnalyzer.Cli.exe --window-size <len> --hop <len> --input-dir <path> --db-fi
 | `--insert-queue-size <n>` | 任意 | 解析と DB Insert の間に置く bounded queue の容量（既定 `1024`） |
 | `--stems <csv>` | 任意 | `peak-analysis` のみ。解析対象 stem |
 | `--ffmpeg-path <path>` | 任意 | 音声処理ツールのパス指定（現行実装では ffmpeg/ffprobe） |
-| `--show-progress` | 任意 | 対話端末で詳細進捗表示（Songs/Threads/Queue）を有効化（`stderr` 出力） |
+| `--show-progress` | 任意 | 対話端末で詳細進捗表示（Songs/Threads/Queue）を有効化（`stderr` 出力）。Thread行は単一ゲージ（Insert=緑、Analyze-only=白、未処理=斑点） |
 | `--help`, `-h` | 任意 | ヘルプ表示 |
 
 ### 単位/サンプリング規則
@@ -44,6 +44,16 @@ SoundAnalyzer.Cli.exe --window-size <len> --hop <len> --input-dir <path> --db-fi
 - `sample(s)` を1つでも使う場合は `--target-sampling <n>hz` が必須です（例: `44100hz`）。
 - モード不一致オプションはエラーではなく warning として無視されます（`stderr` に JSON の `warnings` を出力）。
 - 互換性注意: `--progress` は廃止され、`--show-progress` のみ受理します。
+
+### `--show-progress` 表示仕様
+
+- Songs: 完了Song数/全体 + 進捗バー
+- Threads: file worker の稼働状態（緑丸/灰丸）
+- Queue: Insert queue 占有率（`(enqueued-inserted)/capacity`）
+- Thread行ゲージ:
+  - 単一ゲージ上で `Insert済=緑`、`Analyze済未Insert=白`、`未処理=斑点` を表示
+  - 通常は Analyze が Insert より先行して伸び、Insert が追従して緑化します
+  - `EstimatedTotalFrames` が取得できないSongは Analyze完了まで不確定表示（斑点中心）とし、Analyze完了後は `inserted/enqueued` でInsertドレインを表示します
 
 ### `stft-analysis` の追加制約
 

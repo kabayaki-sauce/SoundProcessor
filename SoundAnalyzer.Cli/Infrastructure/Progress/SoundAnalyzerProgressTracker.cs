@@ -7,7 +7,7 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
 {
     private const int SongsBarWidth = 24;
     private const int QueueBarWidth = 24;
-    private const int WorkerBarWidth = 12;
+    private const int WorkerGaugeWidth = 24;
     private const int SongLabelWidth = 24;
     private static readonly TimeSpan MinRenderInterval = TimeSpan.FromMilliseconds(80);
 
@@ -50,6 +50,11 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
         System.Console.OutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
         bool ansiEnabled = IsAnsiEnabled();
         return new SoundAnalyzerProgressTracker(true, ansiEnabled, System.Console.Error);
+    }
+
+    internal static SoundAnalyzerProgressTracker CreateForTest(bool ansiEnabled, TextWriter writer)
+    {
+        return new SoundAnalyzerProgressTracker(true, ansiEnabled, writer);
     }
 
     public void Configure(IReadOnlyList<string> songNames, int threadCount, int queueCapacity)
@@ -164,6 +169,35 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
             SongState songState = EnsureSong(songName);
             songState.Inserted++;
             totalInserted++;
+            Render();
+        }
+    }
+
+    public void SetSongExpectedPoints(string songName, long expectedPoints)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(songName);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(expectedPoints);
+
+        lock (sync)
+        {
+            ThrowIfDisposed();
+            SongState songState = EnsureSong(songName);
+            songState.ExpectedPoints = expectedPoints;
+            songState.ExpectedPointsKnown = true;
+            Render();
+        }
+    }
+
+    public void MarkSongExpectedPointsUnknown(string songName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(songName);
+
+        lock (sync)
+        {
+            ThrowIfDisposed();
+            SongState songState = EnsureSong(songName);
+            songState.ExpectedPointsKnown = false;
+            songState.ExpectedPoints = null;
             Render();
         }
     }
@@ -288,14 +322,14 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
                 songLabel = songLabel[..SongLabelWidth];
             }
 
-            double analyzeRatio = ResolveAnalyzeRatio(worker);
-            double insertRatio = ResolveInsertRatio(worker);
-            string analyzeBar = BuildProgressBar(analyzeRatio, WorkerBarWidth, "97");
-            string insertBar = BuildProgressBar(insertRatio, WorkerBarWidth, "32");
+            WorkerProgress progress = ResolveWorkerProgress(worker);
+            string mergedGauge = BuildMergedGauge(progress.AnalyzeRatio, progress.InsertRatio, WorkerGaugeWidth);
+            string analyzePercent = (progress.AnalyzeRatio * 100.0).ToString("0.0", CultureInfo.InvariantCulture);
+            string insertPercent = (progress.InsertRatio * 100.0).ToString("0.0", CultureInfo.InvariantCulture);
 
             string line = string.Create(
                 CultureInfo.InvariantCulture,
-                $"T{i + 1:00} {active} {songLabel,-24} A|{analyzeBar}| I|{insertBar}|");
+                $"T{i + 1:00} {active} {songLabel,-24} |{mergedGauge}| A {analyzePercent,5}% I {insertPercent,5}%");
             lines.Add(line);
         }
 
@@ -335,6 +369,70 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
         return builder.ToString();
     }
 
+    private string BuildMergedGauge(double analyzeRatio, double insertRatio, int width)
+    {
+        double clampedAnalyze = ClampRatio(analyzeRatio);
+        double clampedInsert = ClampRatio(insertRatio);
+        if (clampedInsert > clampedAnalyze)
+        {
+            clampedInsert = clampedAnalyze;
+        }
+
+        int analyzeCells = checked((int)Math.Round(clampedAnalyze * width, MidpointRounding.AwayFromZero));
+        int insertCells = checked((int)Math.Round(clampedInsert * width, MidpointRounding.AwayFromZero));
+        if (analyzeCells > width)
+        {
+            analyzeCells = width;
+        }
+
+        if (insertCells > analyzeCells)
+        {
+            insertCells = analyzeCells;
+        }
+
+        int analyzeOnlyCells = analyzeCells - insertCells;
+        int remainingCells = width - analyzeCells;
+
+        if (!ansiEnabled)
+        {
+            StringBuilder plainBuilder = new(capacity: width);
+            if (insertCells > 0)
+            {
+                plainBuilder.Append(new string('█', insertCells));
+            }
+
+            if (analyzeOnlyCells > 0)
+            {
+                plainBuilder.Append(new string('▓', analyzeOnlyCells));
+            }
+
+            if (remainingCells > 0)
+            {
+                plainBuilder.Append(new string('░', remainingCells));
+            }
+
+            return plainBuilder.ToString();
+        }
+
+        StringBuilder builder = new(capacity: width + 24);
+        if (insertCells > 0)
+        {
+            builder.Append(Paint(new string('█', insertCells), "32"));
+        }
+
+        if (analyzeOnlyCells > 0)
+        {
+            builder.Append(Paint(new string('█', analyzeOnlyCells), "97"));
+        }
+
+        if (remainingCells > 0)
+        {
+            builder.Append(Paint(new string('░', remainingCells), "90"));
+        }
+
+        return builder.ToString();
+    }
+
     private string FormatThreadCircle(bool isActive)
     {
         if (ansiEnabled)
@@ -345,44 +443,42 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
         return isActive ? "●" : "○";
     }
 
-    private double ResolveAnalyzeRatio(WorkerState worker)
+    private WorkerProgress ResolveWorkerProgress(WorkerState worker)
     {
         if (string.IsNullOrWhiteSpace(worker.SongName))
         {
-            return 0;
+            return WorkerProgress.Zero;
         }
 
-        if (worker.AnalyzeCompleted)
-        {
-            return 1;
-        }
-
-        if (songs.TryGetValue(worker.SongName, out SongState? songState) && songState.AnalyzeCompleted)
-        {
-            return 1;
-        }
-
-        return 0;
-    }
-
-    private double ResolveInsertRatio(WorkerState worker)
-    {
-        if (string.IsNullOrWhiteSpace(worker.SongName))
-        {
-            return 0;
-        }
-
+        bool analyzeCompleted = worker.AnalyzeCompleted;
         if (!songs.TryGetValue(worker.SongName, out SongState? songState))
         {
-            return 0;
+            return analyzeCompleted
+                ? new WorkerProgress(1, 0)
+                : WorkerProgress.Zero;
         }
 
-        if (songState.Enqueued <= 0)
+        analyzeCompleted |= songState.AnalyzeCompleted;
+
+        if (songState.ExpectedPointsKnown && songState.ExpectedPoints is long expectedPoints && expectedPoints > 0)
         {
-            return songState.AnalyzeCompleted ? 1 : 0;
+            double analyzeRatio = analyzeCompleted
+                ? 1
+                : ClampRatio((double)songState.Enqueued / expectedPoints);
+            double insertRatio = Math.Min(
+                analyzeRatio,
+                ClampRatio((double)songState.Inserted / expectedPoints));
+            return new WorkerProgress(analyzeRatio, insertRatio);
         }
 
-        return ClampRatio((double)songState.Inserted / songState.Enqueued);
+        if (!analyzeCompleted)
+        {
+            return WorkerProgress.Zero;
+        }
+
+        long fallbackDenominator = Math.Max(songState.Enqueued, 1);
+        double fallbackInsertRatio = ClampRatio((double)songState.Inserted / fallbackDenominator);
+        return new WorkerProgress(1, fallbackInsertRatio);
     }
 
     private SongState EnsureSong(string songName)
@@ -539,6 +635,10 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
         public long Inserted { get; set; }
 
         public bool AnalyzeCompleted { get; set; }
+
+        public bool ExpectedPointsKnown { get; set; }
+
+        public long? ExpectedPoints { get; set; }
     }
 
     private sealed class WorkerState
@@ -548,5 +648,10 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
         public string SongName { get; set; } = string.Empty;
 
         public bool AnalyzeCompleted { get; set; }
+    }
+
+    private readonly record struct WorkerProgress(double AnalyzeRatio, double InsertRatio)
+    {
+        public static WorkerProgress Zero { get; } = new(0, 0);
     }
 }
