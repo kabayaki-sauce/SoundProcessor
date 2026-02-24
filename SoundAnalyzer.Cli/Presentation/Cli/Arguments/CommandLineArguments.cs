@@ -16,7 +16,8 @@ internal sealed class CommandLineArguments
         int? binCount,
         bool deleteCurrent,
         bool recursive,
-        string? ffmpegPath)
+        string? ffmpegPath,
+        bool progress)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(windowSizeMs);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hopMs);
@@ -49,6 +50,7 @@ internal sealed class CommandLineArguments
         DeleteCurrent = deleteCurrent;
         Recursive = recursive;
         FfmpegPath = ffmpegPath;
+        Progress = progress;
     }
 
     public long WindowSizeMs { get; }
@@ -78,4 +80,6 @@ internal sealed class CommandLineArguments
     public bool Recursive { get; }
 
     public string? FfmpegPath { get; }
+
+    public bool Progress { get; }
 }

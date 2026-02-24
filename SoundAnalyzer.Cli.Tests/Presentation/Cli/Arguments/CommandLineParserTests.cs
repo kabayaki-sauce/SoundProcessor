@@ -177,4 +177,20 @@ public sealed class CommandLineParserTests
         Assert.Equal(ConsoleTexts.PeakAnalysisMode, result.Arguments.Mode, StringComparer.Ordinal);
         Assert.Null(result.Arguments.BinCount);
     }
+
+    [Fact]
+    public void Parse_ShouldEnableProgress_WhenProgressOptionIsSpecified()
+    {
+        string[] args =
+        [
+            .. BaseSfftArgs,
+            "--progress",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Arguments);
+        Assert.True(result.Arguments.Progress);
+    }
 }

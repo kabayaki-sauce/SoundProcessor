@@ -24,6 +24,7 @@ SoundAnalyzer.Cli.exe --window-size <time> --hop <time> --input-dir <path> --db-
 | `--skip-duplicate` | 任意 | 競合時スキップ |
 | `--min-limit-db <dB>` | 任意 | 下限クランプ（既定 `-120.0`） |
 | `--ffmpeg-path <path>` | 任意 | 音声処理ツールのパス指定（現行実装では ffmpeg/ffprobe） |
+| `--progress` | 任意 | 対話端末で2段プログレス表示を有効化（`stderr` 出力） |
 | `--help`, `-h` | 任意 | ヘルプ表示 |
 
 `--upsert` と `--skip-duplicate` は同時指定不可です。
@@ -98,5 +99,5 @@ SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir /path/to/dir --d
 ### sfft-analysis
 
 ```powershell
-SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir /path/to/dir --db-file /path/to/file.db --mode sfft-analysis --bin-count 12 --table-name-override T_SFFT --upsert --recursive --delete-current
+SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir /path/to/dir --db-file /path/to/file.db --mode sfft-analysis --bin-count 12 --table-name-override T_SFFT --upsert --recursive --delete-current --progress
 ```

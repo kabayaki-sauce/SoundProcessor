@@ -34,9 +34,11 @@ public sealed class SplitAudioUseCase
 
     public async Task<SplitAudioExecutionResult> ExecuteAsync(
         SplitAudioRequest request,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<SplitAudioProgress>? progressCallback = null)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ReportProgress(progressCallback, SplitAudioPhase.Resolve, processed: 0, total: 1);
 
         if (!File.Exists(request.InputFilePath))
         {
@@ -55,10 +57,16 @@ public sealed class SplitAudioUseCase
                 ex);
         }
 
+        ReportProgress(progressCallback, SplitAudioPhase.Resolve, processed: 1, total: 1);
+        ReportProgress(progressCallback, SplitAudioPhase.Probe, processed: 0, total: 1);
+
         FfmpegToolPaths toolPaths = ffmpegLocator.Resolve(request.FfmpegPath);
         AudioStreamInfo streamInfo = await audioProbeService
             .ProbeAsync(toolPaths, request.InputFilePath, cancellationToken)
             .ConfigureAwait(false);
+
+        ReportProgress(progressCallback, SplitAudioPhase.Probe, processed: 1, total: 1);
+        ReportProgress(progressCallback, SplitAudioPhase.Analyze, processed: 0, total: streamInfo.EstimatedTotalFrames);
 
         OutputAudioFormat outputAudioFormat = request.ResolutionType?.ToOutputAudioFormat()
             ?? OutputAudioFormat.FromInputStream(streamInfo);
@@ -70,8 +78,18 @@ public sealed class SplitAudioUseCase
                 streamInfo,
                 request.LevelDb,
                 request.Duration,
-                cancellationToken)
+                cancellationToken,
+                progress =>
+                {
+                    ReportProgress(
+                        progressCallback,
+                        SplitAudioPhase.Analyze,
+                        progress.ProcessedFrames,
+                        progress.TotalFrames);
+                })
             .ConfigureAwait(false);
+
+        ReportProgress(progressCallback, SplitAudioPhase.Analyze, analysisResult.TotalFrames, streamInfo.EstimatedTotalFrames);
 
         IReadOnlyList<AudioSegment> segments = SegmentPlanner.Build(
             analysisResult,
@@ -82,8 +100,11 @@ public sealed class SplitAudioUseCase
         int generatedCount = 0;
         int skippedCount = 0;
         int promptedCount = 0;
+        int handledSegmentCount = 0;
 
         string baseFileName = Path.GetFileNameWithoutExtension(request.InputFilePath);
+        long exportTotal = Math.Max(segments.Count, 1);
+        ReportProgress(progressCallback, SplitAudioPhase.Export, processed: 0, total: exportTotal);
         for (int i = 0; i < segments.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -101,6 +122,8 @@ public sealed class SplitAudioUseCase
             if (!overwriteDecision.ShouldOverwrite)
             {
                 skippedCount++;
+                handledSegmentCount++;
+                ReportProgress(progressCallback, SplitAudioPhase.Export, handledSegmentCount, exportTotal);
                 continue;
             }
 
@@ -115,6 +138,13 @@ public sealed class SplitAudioUseCase
                 .ExportAsync(toolPaths, exportRequest, cancellationToken)
                 .ConfigureAwait(false);
             generatedCount++;
+            handledSegmentCount++;
+            ReportProgress(progressCallback, SplitAudioPhase.Export, handledSegmentCount, exportTotal);
+        }
+
+        if (segments.Count == 0)
+        {
+            ReportProgress(progressCallback, SplitAudioPhase.Export, processed: 1, total: 1);
         }
 
         SplitExecutionSummary summary = new(
@@ -123,6 +153,20 @@ public sealed class SplitAudioUseCase
             promptedCount,
             segments.Count);
         return new SplitAudioExecutionResult(summary);
+    }
+
+    private static void ReportProgress(
+        Action<SplitAudioProgress>? progressCallback,
+        SplitAudioPhase phase,
+        long processed,
+        long? total)
+    {
+        if (progressCallback is null)
+        {
+            return;
+        }
+
+        progressCallback.Invoke(new SplitAudioProgress(phase, processed, total));
     }
 
     private static string BuildOutputPath(string outputDirectoryPath, string baseFileName, int index)

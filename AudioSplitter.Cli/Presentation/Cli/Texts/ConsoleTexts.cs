@@ -14,6 +14,7 @@ internal static class ConsoleTexts
     public const string ResolutionTypeOption = "--resolution-type";
     public const string FfmpegPathOption = "--ffmpeg-path";
     public const string RecursiveOption = "--recursive";
+    public const string ProgressOption = "--progress";
     public const string OverwriteOption = "-y";
     public const string HelpOption = "--help";
     public const string ShortHelpOption = "-h";
@@ -41,6 +42,7 @@ Optional:
   --resume-offset <time>    Offset from next sound start for next segment, negative allowed (default: 0ms)
   --resolution-type <spec>  Output resolution: 16bit|24bit|32float,<rate>hz
   --ffmpeg-path <path>      ffmpeg executable path or directory containing ffmpeg/ffprobe
+  --progress                Show two-line progress bars on interactive stderr
   -y                        Overwrite output without confirmation
   --help, -h                Show help
 """;

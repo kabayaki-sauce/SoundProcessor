@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Cli.Shared\Cli.Shared.csproj" />
     <ProjectReference Include="..\AudioSplitter.Core\AudioSplitter.Core.csproj" />
   </ItemGroup>
 

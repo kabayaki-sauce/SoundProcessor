@@ -26,6 +26,7 @@ internal static class CommandLineParser
         string? ffmpegPath = null;
         bool overwriteWithoutPrompt = false;
         bool recursive = false;
+        bool progress = false;
 
         List<string> errors = new();
 
@@ -46,6 +47,12 @@ internal static class CommandLineParser
             if (string.Equals(token, ConsoleTexts.RecursiveOption, StringComparison.OrdinalIgnoreCase))
             {
                 recursive = true;
+                continue;
+            }
+
+            if (string.Equals(token, ConsoleTexts.ProgressOption, StringComparison.OrdinalIgnoreCase))
+            {
+                progress = true;
                 continue;
             }
 
@@ -267,7 +274,8 @@ internal static class CommandLineParser
             resolutionType,
             ffmpegPath,
             overwriteWithoutPrompt,
-            recursive);
+            recursive,
+            progress);
         return CommandLineParseResult.Success(parsedArguments);
     }
 

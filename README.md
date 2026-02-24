@@ -13,6 +13,7 @@ AudioProcessor は、オーディオ解析・変換ツール群を提供する .
 | パス | 種別 | 役割 |
 |---|---|---|
 | `AudioProcessor` | Library | 外部オーディオ処理エンジン連携、プローブ、PCM ストリーム読取、セグメント出力などの共通基盤 |
+| `Cli.Shared` | Library | CLI 表示共通化（2段プログレス表示、TTY判定、stderr描画） |
 | `AudioSplitter.Core` | Library | 無音分割ドメイン、境界計算、分割ユースケース |
 | `AudioSplitter.Cli` | CLI | 無音分割のコマンドライン実行層 |
 | `PeakAnalyzer.Core` | Library | hop/window ベースのピーク dB 窓解析コア |
@@ -116,6 +117,7 @@ dotnet run --project SoundAnalyzer.Cli -- \
 ## 本体プロジェクトREADME
 
 - [`AudioProcessor/README.md`](AudioProcessor/README.md)
+- [`Cli.Shared/README.md`](Cli.Shared/README.md)
 - [`AudioSplitter.Core/README.md`](AudioSplitter.Core/README.md)
 - [`AudioSplitter.Cli/README.md`](AudioSplitter.Cli/README.md)
 - [`PeakAnalyzer.Core/README.md`](PeakAnalyzer.Core/README.md)

@@ -91,4 +91,21 @@ public sealed class CommandLineParserTests
         Assert.False(result.IsSuccess);
         Assert.Contains(ConsoleTexts.RecursiveRequiresInputDirText, result.Errors, StringComparer.Ordinal);
     }
+
+    [Fact]
+    public void Parse_ShouldEnableProgress_WhenProgressOptionIsSpecified()
+    {
+        string[] args =
+        [
+            .. BaseArgs,
+            "--input-file", "C:/input/file.wav",
+            "--progress",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Arguments);
+        Assert.True(result.Arguments.Progress);
+    }
 }
