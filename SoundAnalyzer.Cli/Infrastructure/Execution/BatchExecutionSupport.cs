@@ -65,6 +65,52 @@ internal static class BatchExecutionSupport
         return elapsedMs / hopMs;
     }
 
+    public static long EstimateAnchorCountBySamples(
+        AudioStreamInfo streamInfo,
+        int analysisSampleRate,
+        long hopSamples)
+    {
+        ArgumentNullException.ThrowIfNull(streamInfo);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(analysisSampleRate);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hopSamples);
+
+        if (!streamInfo.EstimatedTotalFrames.HasValue)
+        {
+            return 0;
+        }
+
+        long estimatedFrames = ScaleFrameCount(streamInfo.EstimatedTotalFrames.Value, streamInfo.SampleRate, analysisSampleRate);
+        if (estimatedFrames <= 0)
+        {
+            return 0;
+        }
+
+        return estimatedFrames / hopSamples;
+    }
+
+    public static long ConvertDurationMsToSamples(long durationMs, int sampleRate)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(durationMs);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleRate);
+
+        long converted = checked(durationMs * sampleRate / 1000);
+        return Math.Max(1, converted);
+    }
+
+    public static long ScaleFrameCount(long frameCount, int sourceSampleRate, int targetSampleRate)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(frameCount);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceSampleRate);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(targetSampleRate);
+
+        if (sourceSampleRate == targetSampleRate)
+        {
+            return frameCount;
+        }
+
+        return checked(frameCount * targetSampleRate / sourceSampleRate);
+    }
+
     public static double ToRatio(long processed, long? total)
     {
         if (!total.HasValue || total.Value <= 0)

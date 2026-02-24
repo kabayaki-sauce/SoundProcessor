@@ -9,5 +9,6 @@ public interface IAudioPcmFrameReader
         string inputFilePath,
         int channels,
         IAudioPcmFrameSink frameSink,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        int? targetSampleRateHz = null);
 }

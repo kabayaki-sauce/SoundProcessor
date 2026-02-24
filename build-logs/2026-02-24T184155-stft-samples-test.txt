@@ -1,0 +1,65 @@
+  復元対象のプロジェクトを決定しています...
+  復元対象のすべてのプロジェクトは最新です。
+  AudioProcessor -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioProcessor\bin\Debug\net10.0\AudioProcessor.dll
+  Cli.Shared -> C:\Users\KABAYAKI\source\repos\SoundProcessor\Cli.Shared\bin\Debug\net10.0\Cli.Shared.dll
+  PeakAnalyzer.Core -> C:\Users\KABAYAKI\source\repos\SoundProcessor\PeakAnalyzer.Core\bin\Debug\net10.0\PeakAnalyzer.Core.dll
+  AudioSplitter.Core -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Core\bin\Debug\net10.0\AudioSplitter.Core.dll
+  STFTAnalyzer.Core -> C:\Users\KABAYAKI\source\repos\SoundProcessor\STFTAnalyzer.Core\bin\Debug\net10.0\STFTAnalyzer.Core.dll
+  AudioProcessor.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioProcessor.Tests\bin\Debug\net10.0\AudioProcessor.Tests.dll
+C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioProcessor.Tests\bin\Debug\net10.0\AudioProcessor.Tests.dll (.NETCoreApp,Version=v10.0) のテスト実行
+  Cli.Shared.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\Cli.Shared.Tests\bin\Debug\net10.0\Cli.Shared.Tests.dll
+VSTest のバージョン 18.0.1 (x64)
+C:\Users\KABAYAKI\source\repos\SoundProcessor\Cli.Shared.Tests\bin\Debug\net10.0\Cli.Shared.Tests.dll (.NETCoreApp,Version=v10.0) のテスト実行
+
+VSTest のバージョン 18.0.1 (x64)
+
+テスト実行を開始しています。お待ちください...
+  STFTAnalyzer.Core.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\STFTAnalyzer.Core.Tests\bin\Debug\net10.0\STFTAnalyzer.Core.Tests.dll
+  PeakAnalyzer.Core.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\PeakAnalyzer.Core.Tests\bin\Debug\net10.0\PeakAnalyzer.Core.Tests.dll
+C:\Users\KABAYAKI\source\repos\SoundProcessor\STFTAnalyzer.Core.Tests\bin\Debug\net10.0\STFTAnalyzer.Core.Tests.dll (.NETCoreApp,Version=v10.0) のテスト実行
+C:\Users\KABAYAKI\source\repos\SoundProcessor\PeakAnalyzer.Core.Tests\bin\Debug\net10.0\PeakAnalyzer.Core.Tests.dll (.NETCoreApp,Version=v10.0) のテスト実行
+合計 1 個のテスト ファイルが指定されたパターンと一致しました。
+テスト実行を開始しています。お待ちください...
+合計 1 個のテスト ファイルが指定されたパターンと一致しました。
+VSTest のバージョン 18.0.1 (x64)
+VSTest のバージョン 18.0.1 (x64)
+
+
+テスト実行を開始しています。お待ちください...
+テスト実行を開始しています。お待ちください...
+合計 1 個のテスト ファイルが指定されたパターンと一致しました。
+合計 1 個のテスト ファイルが指定されたパターンと一致しました。
+
+成功!   -失敗:     0、合格:    12、スキップ:     0、合計:    12、期間: 112 ms - AudioProcessor.Tests.dll (net10.0)
+
+成功!   -失敗:     0、合格:    11、スキップ:     0、合計:    11、期間: 144 ms - Cli.Shared.Tests.dll (net10.0)
+  SoundAnalyzer.Cli -> C:\Users\KABAYAKI\source\repos\SoundProcessor\SoundAnalyzer.Cli\bin\Debug\net10.0\SoundAnalyzer.Cli.dll
+  AudioSplitter.Core.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Core.Tests\bin\Debug\net10.0\AudioSplitter.Core.Tests.dll
+  AudioSplitter.Cli -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli\bin\Debug\net10.0\AudioSplitter.Cli.dll
+C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Core.Tests\bin\Debug\net10.0\AudioSplitter.Core.Tests.dll (.NETCoreApp,Version=v10.0) のテスト実行
+VSTest のバージョン 18.0.1 (x64)
+
+
+成功!   -失敗:     0、合格:     5、スキップ:     0、合計:     5、期間: 86 ms - PeakAnalyzer.Core.Tests.dll (net10.0)
+
+成功!   -失敗:     0、合格:     6、スキップ:     0、合計:     6、期間: 107 ms - STFTAnalyzer.Core.Tests.dll (net10.0)
+テスト実行を開始しています。お待ちください...
+合計 1 個のテスト ファイルが指定されたパターンと一致しました。
+  SoundAnalyzer.Cli.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\SoundAnalyzer.Cli.Tests\bin\Debug\net10.0\SoundAnalyzer.Cli.Tests.dll
+  AudioSplitter.Cli.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.Tests.dll
+C:\Users\KABAYAKI\source\repos\SoundProcessor\SoundAnalyzer.Cli.Tests\bin\Debug\net10.0\SoundAnalyzer.Cli.Tests.dll (.NETCoreApp,Version=v10.0) のテスト実行
+C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.Tests.dll (.NETCoreApp,Version=v10.0) のテスト実行
+VSTest のバージョン 18.0.1 (x64)
+
+VSTest のバージョン 18.0.1 (x64)
+
+テスト実行を開始しています。お待ちください...
+テスト実行を開始しています。お待ちください...
+合計 1 個のテスト ファイルが指定されたパターンと一致しました。
+合計 1 個のテスト ファイルが指定されたパターンと一致しました。
+
+成功!   -失敗:     0、合格:     8、スキップ:     0、合計:     8、期間: 56 ms - AudioSplitter.Core.Tests.dll (net10.0)
+
+成功!   -失敗:     0、合格:    15、スキップ:     0、合計:    15、期間: 117 ms - AudioSplitter.Cli.Tests.dll (net10.0)
+
+成功!   -失敗:     0、合格:    41、スキップ:     0、合計:    41、期間: 252 ms - SoundAnalyzer.Cli.Tests.dll (net10.0)

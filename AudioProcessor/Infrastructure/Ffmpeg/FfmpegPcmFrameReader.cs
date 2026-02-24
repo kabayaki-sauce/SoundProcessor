@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Globalization;
 using AudioProcessor.Application.Errors;
 using AudioProcessor.Application.Models;
 using AudioProcessor.Application.Ports;
@@ -16,16 +17,22 @@ public sealed class FfmpegPcmFrameReader : IAudioPcmFrameReader
         string inputFilePath,
         int channels,
         IAudioPcmFrameSink frameSink,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int? targetSampleRateHz = null)
     {
         ArgumentNullException.ThrowIfNull(toolPaths);
         ArgumentException.ThrowIfNullOrWhiteSpace(inputFilePath);
         ArgumentNullException.ThrowIfNull(frameSink);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(channels);
 
+        if (targetSampleRateHz.HasValue)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(targetSampleRateHz.Value);
+        }
+
         int bytesPerFrame = checked(channels * sizeof(float));
 
-        ProcessStartInfo startInfo = BuildStartInfo(toolPaths.FfmpegPath, inputFilePath);
+        ProcessStartInfo startInfo = BuildStartInfo(toolPaths.FfmpegPath, inputFilePath, targetSampleRateHz);
         using Process process = Process.Start(startInfo)
             ?? throw new AudioProcessorException(AudioProcessorErrorCode.FrameReadFailed, inputFilePath);
 
@@ -103,7 +110,7 @@ public sealed class FfmpegPcmFrameReader : IAudioPcmFrameReader
         }
     }
 
-    private static ProcessStartInfo BuildStartInfo(string ffmpegPath, string inputFilePath)
+    private static ProcessStartInfo BuildStartInfo(string ffmpegPath, string inputFilePath, int? targetSampleRateHz)
     {
         ProcessStartInfo startInfo = new()
         {
@@ -122,6 +129,13 @@ public sealed class FfmpegPcmFrameReader : IAudioPcmFrameReader
         startInfo.ArgumentList.Add("-map");
         startInfo.ArgumentList.Add("a:0");
         startInfo.ArgumentList.Add("-vn");
+
+        if (targetSampleRateHz.HasValue)
+        {
+            startInfo.ArgumentList.Add("-ar");
+            startInfo.ArgumentList.Add(targetSampleRateHz.Value.ToString(CultureInfo.InvariantCulture));
+        }
+
         startInfo.ArgumentList.Add("-acodec");
         startInfo.ArgumentList.Add("pcm_f32le");
         startInfo.ArgumentList.Add("-f");

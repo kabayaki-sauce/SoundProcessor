@@ -7,8 +7,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using PeakAnalyzer.Core.Application.Errors;
 using PeakAnalyzer.Core.Extensions;
-using SFFTAnalyzer.Core.Application.Errors;
-using SFFTAnalyzer.Core.Extensions;
+using STFTAnalyzer.Core.Application.Errors;
+using STFTAnalyzer.Core.Extensions;
 using SoundAnalyzer.Cli.Infrastructure.Execution;
 using SoundAnalyzer.Cli.Presentation.Cli.Arguments;
 using SoundAnalyzer.Cli.Presentation.Cli.Errors;
@@ -73,7 +73,7 @@ internal static class Entry
             WriteErrors(new[] { CliErrorMapper.ToMessage(exception) });
             return 1;
         }
-        catch (SfftAnalysisException exception)
+        catch (StftAnalysisException exception)
         {
             WriteErrors(new[] { CliErrorMapper.ToMessage(exception) });
             return 1;
@@ -110,7 +110,7 @@ internal static class Entry
                 .ExecuteAsync(arguments, progressDisplay, cancellationToken)
                 .GetAwaiter()
                 .GetResult(),
-            ConsoleTexts.SfftAnalysisMode => services.GetRequiredService<SfftAnalysisBatchExecutor>()
+            ConsoleTexts.StftAnalysisMode => services.GetRequiredService<StftAnalysisBatchExecutor>()
                 .ExecuteAsync(arguments, progressDisplay, cancellationToken)
                 .GetAwaiter()
                 .GetResult(),
@@ -124,9 +124,9 @@ internal static class Entry
 
         builder.Services.AddCliShared();
         builder.Services.AddPeakAnalyzerCore();
-        builder.Services.AddSfftAnalyzerCore();
+        builder.Services.AddStftAnalyzerCore();
         builder.Services.AddSingleton<PeakAnalysisBatchExecutor>();
-        builder.Services.AddSingleton<SfftAnalysisBatchExecutor>();
+        builder.Services.AddSingleton<StftAnalysisBatchExecutor>();
 
         return builder.Build();
     }

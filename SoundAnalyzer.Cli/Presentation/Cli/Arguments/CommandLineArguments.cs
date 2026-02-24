@@ -3,8 +3,11 @@ namespace SoundAnalyzer.Cli.Presentation.Cli.Arguments;
 internal sealed class CommandLineArguments
 {
     public CommandLineArguments(
-        long windowSizeMs,
-        long hopMs,
+        long windowValue,
+        AnalysisLengthUnit windowUnit,
+        long hopValue,
+        AnalysisLengthUnit hopUnit,
+        int? targetSamplingHz,
         string inputDirectoryPath,
         string dbFilePath,
         IReadOnlyList<string>? stems,
@@ -19,12 +22,17 @@ internal sealed class CommandLineArguments
         string? ffmpegPath,
         bool progress)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(windowSizeMs);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hopMs);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(windowValue);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hopValue);
         ArgumentException.ThrowIfNullOrWhiteSpace(inputDirectoryPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(dbFilePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(mode);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+
+        if (targetSamplingHz.HasValue)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(targetSamplingHz.Value);
+        }
 
         if (double.IsNaN(minLimitDb) || double.IsInfinity(minLimitDb))
         {
@@ -36,8 +44,11 @@ internal sealed class CommandLineArguments
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(binCount.Value);
         }
 
-        WindowSizeMs = windowSizeMs;
-        HopMs = hopMs;
+        WindowValue = windowValue;
+        WindowUnit = windowUnit;
+        HopValue = hopValue;
+        HopUnit = hopUnit;
+        TargetSamplingHz = targetSamplingHz;
         InputDirectoryPath = inputDirectoryPath;
         DbFilePath = dbFilePath;
         Stems = stems;
@@ -53,9 +64,15 @@ internal sealed class CommandLineArguments
         Progress = progress;
     }
 
-    public long WindowSizeMs { get; }
+    public long WindowValue { get; }
 
-    public long HopMs { get; }
+    public AnalysisLengthUnit WindowUnit { get; }
+
+    public long HopValue { get; }
+
+    public AnalysisLengthUnit HopUnit { get; }
+
+    public int? TargetSamplingHz { get; }
 
     public string InputDirectoryPath { get; }
 
@@ -82,4 +99,14 @@ internal sealed class CommandLineArguments
     public string? FfmpegPath { get; }
 
     public bool Progress { get; }
+
+    public bool UsesSampleUnit => WindowUnit == AnalysisLengthUnit.Sample || HopUnit == AnalysisLengthUnit.Sample;
+
+    public long WindowSizeMs => WindowUnit == AnalysisLengthUnit.Millisecond
+        ? WindowValue
+        : throw new InvalidOperationException("Window unit is not milliseconds.");
+
+    public long HopMs => HopUnit == AnalysisLengthUnit.Millisecond
+        ? HopValue
+        : throw new InvalidOperationException("Hop unit is not milliseconds.");
 }

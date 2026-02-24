@@ -5,7 +5,8 @@ internal enum CliErrorCode
     None = 0,
     InputDirectoryNotFound,
     DbDirectoryCreationFailed,
-    DuplicateSfftAnalysisName,
-    SfftTableBinCountMismatch,
+    DuplicateStftAnalysisName,
+    StftTableBinCountMismatch,
+    StftTableSchemaMismatch,
     UnsupportedMode,
 }

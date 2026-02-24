@@ -1,7 +1,7 @@
 using AudioProcessor.Application.Errors;
 using Microsoft.Data.Sqlite;
 using PeakAnalyzer.Core.Application.Errors;
-using SFFTAnalyzer.Core.Application.Errors;
+using STFTAnalyzer.Core.Application.Errors;
 using SoundAnalyzer.Cli.Infrastructure.Execution;
 using SoundAnalyzer.Cli.Presentation.Cli.Texts;
 
@@ -17,8 +17,9 @@ internal static class CliErrorMapper
         {
             CliErrorCode.InputDirectoryNotFound => ConsoleTexts.WithValue(ConsoleTexts.InputDirectoryNotFoundPrefix, exception.Detail),
             CliErrorCode.DbDirectoryCreationFailed => ConsoleTexts.WithValue(ConsoleTexts.FailedToCreateDbDirectoryPrefix, exception.Detail),
-            CliErrorCode.DuplicateSfftAnalysisName => ConsoleTexts.WithValue(ConsoleTexts.DuplicateSfftAnalysisNamePrefix, exception.Detail),
-            CliErrorCode.SfftTableBinCountMismatch => ConsoleTexts.WithValue(ConsoleTexts.SfftBinCountMismatchPrefix, exception.Detail),
+            CliErrorCode.DuplicateStftAnalysisName => ConsoleTexts.WithValue(ConsoleTexts.DuplicateStftAnalysisNamePrefix, exception.Detail),
+            CliErrorCode.StftTableBinCountMismatch => ConsoleTexts.WithValue(ConsoleTexts.StftBinCountMismatchPrefix, exception.Detail),
+            CliErrorCode.StftTableSchemaMismatch => ConsoleTexts.WithValue(ConsoleTexts.StftSchemaMismatchPrefix, exception.Detail),
             CliErrorCode.UnsupportedMode => ConsoleTexts.WithValue(ConsoleTexts.InvalidModePrefix, exception.Detail),
             _ => exception.Detail,
         };
@@ -38,17 +39,18 @@ internal static class CliErrorMapper
         };
     }
 
-    public static string ToMessage(SfftAnalysisException exception)
+    public static string ToMessage(StftAnalysisException exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
 
         return exception.ErrorCode switch
         {
-            SfftAnalysisErrorCode.InputFileNotFound => ConsoleTexts.WithValue(ConsoleTexts.SfftInputFileNotFoundPrefix, exception.Detail),
-            SfftAnalysisErrorCode.InvalidWindowSize => ConsoleTexts.WithValue(ConsoleTexts.SfftInvalidWindowPrefix, exception.Detail),
-            SfftAnalysisErrorCode.InvalidHop => ConsoleTexts.WithValue(ConsoleTexts.SfftInvalidHopPrefix, exception.Detail),
-            SfftAnalysisErrorCode.InvalidBinCount => ConsoleTexts.WithValue(ConsoleTexts.SfftInvalidBinCountPrefix, exception.Detail),
-            SfftAnalysisErrorCode.InvalidMinLimitDb => ConsoleTexts.WithValue(ConsoleTexts.SfftInvalidMinLimitPrefix, exception.Detail),
+            StftAnalysisErrorCode.InputFileNotFound => ConsoleTexts.WithValue(ConsoleTexts.StftInputFileNotFoundPrefix, exception.Detail),
+            StftAnalysisErrorCode.InvalidWindowSize => ConsoleTexts.WithValue(ConsoleTexts.StftInvalidWindowPrefix, exception.Detail),
+            StftAnalysisErrorCode.InvalidHop => ConsoleTexts.WithValue(ConsoleTexts.StftInvalidHopPrefix, exception.Detail),
+            StftAnalysisErrorCode.InvalidBinCount => ConsoleTexts.WithValue(ConsoleTexts.StftInvalidBinCountPrefix, exception.Detail),
+            StftAnalysisErrorCode.InvalidMinLimitDb => ConsoleTexts.WithValue(ConsoleTexts.StftInvalidMinLimitPrefix, exception.Detail),
+            StftAnalysisErrorCode.InvalidTargetSampling => ConsoleTexts.WithValue(ConsoleTexts.StftInvalidTargetSamplingPrefix, exception.Detail),
             _ => exception.Detail,
         };
     }
