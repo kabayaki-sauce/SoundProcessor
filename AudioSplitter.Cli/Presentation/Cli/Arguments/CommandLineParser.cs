@@ -16,6 +16,7 @@ internal static class CommandLineParser
         }
 
         string? inputFilePath = null;
+        string? inputDirectoryPath = null;
         string? outputDirectoryPath = null;
         string? levelText = null;
         string? durationText = null;
@@ -24,6 +25,7 @@ internal static class CommandLineParser
         string? resolutionTypeText = null;
         string? ffmpegPath = null;
         bool overwriteWithoutPrompt = false;
+        bool recursive = false;
 
         List<string> errors = new();
 
@@ -41,6 +43,12 @@ internal static class CommandLineParser
                 continue;
             }
 
+            if (string.Equals(token, ConsoleTexts.RecursiveOption, StringComparison.OrdinalIgnoreCase))
+            {
+                recursive = true;
+                continue;
+            }
+
             if (MatchesOption(token, ConsoleTexts.InputFileOption))
             {
                 if (!TryReadOptionValue(args, ref i, token, errors, out string value))
@@ -49,6 +57,17 @@ internal static class CommandLineParser
                 }
 
                 inputFilePath = value;
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.InputDirOption))
+            {
+                if (!TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    continue;
+                }
+
+                inputDirectoryPath = value;
                 continue;
             }
 
@@ -132,9 +151,21 @@ internal static class CommandLineParser
             errors.Add(ConsoleTexts.WithValue(ConsoleTexts.UnknownOptionPrefix, token));
         }
 
-        if (inputFilePath is null)
+        bool hasInputFile = !string.IsNullOrWhiteSpace(inputFilePath);
+        bool hasInputDirectory = !string.IsNullOrWhiteSpace(inputDirectoryPath);
+        if (!hasInputFile && !hasInputDirectory)
         {
-            errors.Add(ConsoleTexts.WithValue(ConsoleTexts.MissingOptionPrefix, ConsoleTexts.InputFileOption));
+            errors.Add(ConsoleTexts.InputSourceRequiredText);
+        }
+
+        if (hasInputFile && hasInputDirectory)
+        {
+            errors.Add(ConsoleTexts.InputSourceExclusiveText);
+        }
+
+        if (recursive && !hasInputDirectory)
+        {
+            errors.Add(ConsoleTexts.RecursiveRequiresInputDirText);
         }
 
         if (outputDirectoryPath is null)
@@ -226,7 +257,8 @@ internal static class CommandLineParser
         }
 
         CommandLineArguments parsedArguments = new(
-            inputFilePath!,
+            inputFilePath,
+            inputDirectoryPath,
             outputDirectoryPath!,
             levelDb,
             duration,
@@ -234,7 +266,8 @@ internal static class CommandLineParser
             resumeOffset,
             resolutionType,
             ffmpegPath,
-            overwriteWithoutPrompt);
+            overwriteWithoutPrompt,
+            recursive);
         return CommandLineParseResult.Success(parsedArguments);
     }
 

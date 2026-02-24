@@ -5,7 +5,8 @@ namespace AudioSplitter.Cli.Presentation.Cli.Arguments;
 internal sealed class CommandLineArguments
 {
     public CommandLineArguments(
-        string inputFilePath,
+        string? inputFilePath,
+        string? inputDirectoryPath,
         string outputDirectoryPath,
         double levelDb,
         TimeSpan duration,
@@ -13,12 +14,25 @@ internal sealed class CommandLineArguments
         TimeSpan resumeOffset,
         ResolutionType? resolutionType,
         string? ffmpegPath,
-        bool overwriteWithoutPrompt)
+        bool overwriteWithoutPrompt,
+        bool recursive)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(inputFilePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputDirectoryPath);
 
-        InputFilePath = inputFilePath;
+        bool hasInputFile = !string.IsNullOrWhiteSpace(inputFilePath);
+        bool hasInputDirectory = !string.IsNullOrWhiteSpace(inputDirectoryPath);
+        if (hasInputFile == hasInputDirectory)
+        {
+            throw new ArgumentException("Exactly one of inputFilePath or inputDirectoryPath must be specified.");
+        }
+
+        if (recursive && !hasInputDirectory)
+        {
+            throw new ArgumentException("recursive requires inputDirectoryPath.");
+        }
+
+        InputFilePath = hasInputFile ? inputFilePath : null;
+        InputDirectoryPath = hasInputDirectory ? inputDirectoryPath : null;
         OutputDirectoryPath = outputDirectoryPath;
         LevelDb = levelDb;
         Duration = duration;
@@ -27,9 +41,12 @@ internal sealed class CommandLineArguments
         ResolutionType = resolutionType;
         FfmpegPath = ffmpegPath;
         OverwriteWithoutPrompt = overwriteWithoutPrompt;
+        Recursive = recursive;
     }
 
-    public string InputFilePath { get; }
+    public string? InputFilePath { get; }
+
+    public string? InputDirectoryPath { get; }
 
     public string OutputDirectoryPath { get; }
 
@@ -46,4 +63,6 @@ internal sealed class CommandLineArguments
     public string? FfmpegPath { get; }
 
     public bool OverwriteWithoutPrompt { get; }
+
+    public bool Recursive { get; }
 }

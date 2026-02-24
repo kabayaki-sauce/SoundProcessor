@@ -5,6 +5,7 @@ namespace AudioSplitter.Cli.Presentation.Cli.Texts;
 internal static class ConsoleTexts
 {
     public const string InputFileOption = "--input-file";
+    public const string InputDirOption = "--input-dir";
     public const string OutputDirOption = "--output-dir";
     public const string LevelOption = "--level";
     public const string DurationOption = "--duration";
@@ -12,6 +13,7 @@ internal static class ConsoleTexts
     public const string ResumeOffsetOption = "--resume-offset";
     public const string ResolutionTypeOption = "--resolution-type";
     public const string FfmpegPathOption = "--ffmpeg-path";
+    public const string RecursiveOption = "--recursive";
     public const string OverwriteOption = "-y";
     public const string HelpOption = "--help";
     public const string ShortHelpOption = "-h";
@@ -24,15 +26,17 @@ internal static class ConsoleTexts
     public const string HelpText =
 """
 Usage:
-  AudioSplitter.Cli.exe --input-file <path> --output-dir <path> --level <dBFS> --duration <time> [options]
+  AudioSplitter.Cli.exe (--input-file <path> | --input-dir <path>) --output-dir <path> --level <dBFS> --duration <time> [options]
 
 Required options:
-  --input-file <path>       Input audio file path (wav/flac/alac)
+  --input-file <path>       Input audio file path (wav/flac/m4a/caf)
+  --input-dir <path>        Input directory path
   --output-dir <path>       Output directory path
   --level <dBFS>            Silence threshold in dBFS, negative value only
   --duration <time>         Silence duration threshold (e.g. 2000ms, 2s, 1m)
 
 Optional:
+  --recursive               Scan input directory recursively (available with --input-dir)
   --after-offset <time>     Keep this duration from silence start in previous segment (default: 0ms)
   --resume-offset <time>    Offset from next sound start for next segment, negative allowed (default: 0ms)
   --resolution-type <spec>  Output resolution: 16bit|24bit|32float,<rate>hz
@@ -50,7 +54,11 @@ Optional:
     public const string InvalidLevelText = "--level must be lower than 0.";
     public const string InvalidDurationText = "--duration must be greater than 0.";
     public const string InvalidAfterOffsetText = "--after-offset must be 0 or greater.";
+    public const string InputSourceRequiredText = "Specify exactly one of --input-file or --input-dir.";
+    public const string InputSourceExclusiveText = "--input-file and --input-dir cannot be specified together.";
+    public const string RecursiveRequiresInputDirText = "--recursive can only be used with --input-dir.";
     public const string InputFileNotFoundPrefix = "Input file does not exist: ";
+    public const string InputDirectoryNotFoundPrefix = "Input directory does not exist: ";
     public const string OutputDirectoryCreationFailedPrefix = "Failed to create output directory: ";
     public const string FfmpegNotFoundPrefix = "ffmpeg was not found or not executable: ";
     public const string FfprobeNotFoundPrefix = "ffprobe was not found or not executable: ";

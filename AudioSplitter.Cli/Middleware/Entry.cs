@@ -1,8 +1,7 @@
 using System.Text.Json;
 using AudioProcessor.Application.Errors;
+using AudioSplitter.Cli.Infrastructure.Execution;
 using AudioSplitter.Core.Application.Errors;
-using AudioSplitter.Core.Application.Models;
-using AudioSplitter.Core.Application.UseCases;
 using AudioSplitter.Core.Extensions;
 using AudioSplitter.Core.Application.Ports;
 using AudioSplitter.Cli.Infrastructure.Console;
@@ -45,20 +44,24 @@ internal static class Entry
         System.Console.CancelKeyPress += cancelHandler;
         try
         {
-            SplitAudioUseCase useCase = host.Services.GetRequiredService<SplitAudioUseCase>();
-            SplitAudioRequest request = ToRequest(parseResult.Arguments);
-            var executionResult = useCase.ExecuteAsync(
-                    request,
+            SplitAudioBatchExecutor executor = host.Services.GetRequiredService<SplitAudioBatchExecutor>();
+            SplitAudioBatchSummary summary = executor.ExecuteAsync(
+                    parseResult.Arguments,
                     cancellationTokenSource.Token)
                 .GetAwaiter()
                 .GetResult();
-            string serialized = JsonSerializer.Serialize(executionResult.Summary);
+            string serialized = JsonSerializer.Serialize(summary);
             System.Console.Out.WriteLine(serialized);
             return 0;
         }
         catch (OperationCanceledException)
         {
             WriteErrors(new[] { ConsoleTexts.OperationCanceledText });
+            return 1;
+        }
+        catch (CliException exception)
+        {
+            WriteErrors(new[] { CliErrorMapper.ToMessage(exception) });
             return 1;
         }
         catch (SplitAudioException exception)
@@ -83,24 +86,9 @@ internal static class Entry
 
         builder.Services.AddAudioSplitterCore();
         builder.Services.AddSingleton<IOverwriteConfirmationService, OverwriteConfirmationService>();
+        builder.Services.AddSingleton<SplitAudioBatchExecutor>();
 
         return builder.Build();
-    }
-
-    private static SplitAudioRequest ToRequest(CommandLineArguments arguments)
-    {
-        ArgumentNullException.ThrowIfNull(arguments);
-
-        return new SplitAudioRequest(
-            arguments.InputFilePath,
-            arguments.OutputDirectoryPath,
-            arguments.LevelDb,
-            arguments.Duration,
-            arguments.AfterOffset,
-            arguments.ResumeOffset,
-            arguments.ResolutionType,
-            arguments.FfmpegPath,
-            arguments.OverwriteWithoutPrompt);
     }
 
     private static void WriteErrors(IEnumerable<string> errors)
