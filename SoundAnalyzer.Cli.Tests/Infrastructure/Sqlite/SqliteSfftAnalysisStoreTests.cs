@@ -68,6 +68,32 @@ public sealed class SqliteSfftAnalysisStoreTests
     }
 
     [Fact]
+    public void Initialize_ShouldPreferWalJournalMode()
+    {
+        string dbFilePath = CreateTempDbPath();
+        try
+        {
+            using (SqliteSfftAnalysisStore store = new(
+                       dbFilePath,
+                       "T_SFFTAnalysis",
+                       SqliteConflictMode.Error,
+                       binCount: 12,
+                       deleteCurrent: false))
+            {
+                store.Initialize();
+                store.Complete();
+            }
+
+            string mode = ReadJournalMode(dbFilePath);
+            Assert.Equal("wal", mode, ignoreCase: true);
+        }
+        finally
+        {
+            DeleteIfExists(dbFilePath);
+        }
+    }
+
+    [Fact]
     public void Initialize_ShouldRecreateTable_WhenDeleteCurrentIsEnabled()
     {
         string dbFilePath = CreateTempDbPath();
@@ -261,6 +287,15 @@ public sealed class SqliteSfftAnalysisStoreTests
         command.CommandText = "SELECT COUNT(1) FROM \"T_SFFTAnalysis\";";
         object? scalar = command.ExecuteScalar();
         return scalar is long count ? count : 0;
+    }
+
+    private static string ReadJournalMode(string dbFilePath)
+    {
+        using SqliteConnection connection = OpenConnection(dbFilePath);
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = "PRAGMA journal_mode;";
+        object? scalar = command.ExecuteScalar();
+        return scalar as string ?? string.Empty;
     }
 
     private static string CreateTempDbPath()
