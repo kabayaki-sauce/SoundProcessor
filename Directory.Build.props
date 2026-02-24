@@ -1,0 +1,102 @@
+<Project>
+  <!-- 共通のプロジェクト設定 -->
+  <PropertyGroup>
+    <!-- 言語バージョンとフレームワーク -->
+    <LangVersion>14.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <WarningsAsErrors />
+    <NoWarn />
+    <!-- アセンブリ情報 -->
+    <Product>AudioProcessor</Product>
+    <Company>kabayaki-sauce</Company>
+    <Copyright>Copyright © 2026 Tomonari Hayashi</Copyright>
+    <!-- ビルド設定 -->
+    <Deterministic>true</Deterministic>
+    <Features>strict</Features>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;SA1629;SA1101</NoWarn>
+    <!-- XMLドキュメントコメントの警告を一部抑制、SA1629:ピリオド、SA1101:thisプレフィックス -->
+    <!-- コード分析 -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-all</AnalysisLevel>
+    <AnalysisMode>AllEnabledByDefault</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- ランタイム設定 -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <TieredCompilation>true</TieredCompilation>
+    <TieredCompilationQuickJit>true</TieredCompilationQuickJit>
+  </PropertyGroup>
+  <!-- 条件付き設定 -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <DebugType>full</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <DefineConstants>$(DefineConstants);DEBUG</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>pdbonly</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <Optimize>true</Optimize>
+    <DefineConstants>$(DefineConstants);RELEASE</DefineConstants>
+  </PropertyGroup>
+  <!-- テストプロジェクト設定 -->
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+  <!-- 共通のパッケージ参照（Central Package Managementで管理） -->
+  <ItemGroup>
+    <!-- コード分析 -->
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="SonarAnalyzer.CSharp">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <!-- グローバル using -->
+  <ItemGroup>
+    <Using Include="System" />
+    <Using Include="System.Collections.Generic" />
+    <Using Include="System.Linq" />
+    <Using Include="System.Threading" />
+    <Using Include="System.Threading.Tasks" />
+  </ItemGroup>
+  <!-- 内部アセンブリ公開設定（テスト用） -->
+  <ItemGroup Condition="'$(IsTestProject)' != 'true'">
+    <InternalsVisibleTo Include="$(MSBuildProjectName).Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+    <!-- NSubstitute用 -->
+  </ItemGroup>
+  <!-- カバレッジ設定 -->
+  <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
+    <CollectCoverage>true</CollectCoverage>
+    <CoverletOutputFormat>opencover</CoverletOutputFormat>
+    <CoverletOutput>$(OutputPath)</CoverletOutput>
+    <ExcludeByAttribute>ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
+  </PropertyGroup>
+  <!-- パフォーマンス最適化 -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <PublishSingleFile>false</PublishSingleFile>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+  <!-- 警告レベルのカスタマイズ -->
+  <PropertyGroup>
+    <!-- CS8618: null 非許容フィールドは初期化が必要 -->
+    <!-- テストプロジェクトでは柔軟性のため警告を抑制 -->
+    <NoWarn Condition="$(MSBuildProjectName.EndsWith('.Tests'))">$(NoWarn);CS8618;CA1707;CA1041;S2699</NoWarn>
+    <!-- rawinc及びALL ROUNDER承諾済の警告共通抑制 -->
+    <NoWarn>$(NoWarn);SA1311;SA1623;S1134;CA1307;S3626;S1066;CA1308;S4136</NoWarn>
+    <!-- CA1062: public メソッドの引数をnullチェック -->
+    <WarningsAsErrors>$(WarningsAsErrors);CA1062</WarningsAsErrors>
+    <!-- Nullability 警告の分類 -->
+    <!-- IDEでの開発時は警告として柔軟性を持たせ、ビルド時は厳格にチェックします。 -->
+    <WarningsAsErrors>$(WarningsAsErrors);CS8600;CS8602;CS8604;CS8618;CS8625</WarningsAsErrors>
+  </PropertyGroup>
+</Project>

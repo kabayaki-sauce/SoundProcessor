@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="NAudio" />
+    <PackageReference Include="OpenTK.Audio.OpenAL" VersionOverride="4.9.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AudioSplitter.Core\AudioSplitter.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Middleware\**\*.cs" />
+    <Compile Include="Infrastructure\Console\**\*.cs" />
+    <Compile Include="Presentation\**\*.cs" />
+  </ItemGroup>
+
+</Project>
