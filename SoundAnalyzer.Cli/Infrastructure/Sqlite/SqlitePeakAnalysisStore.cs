@@ -36,6 +36,7 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisPointWriter, IDispo
 
         connection = new SqliteConnection(BuildConnectionString(dbFilePath));
         connection.Open();
+        _ = SqliteJournalModeConfigurator.TryEnableWal(connection);
 
         transaction = connection.BeginTransaction();
         CreateTableIfNeeded(connection, transaction, tableName);

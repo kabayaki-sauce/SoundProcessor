@@ -47,6 +47,7 @@ internal sealed class SqliteSfftAnalysisStore : ISfftAnalysisPointWriter, IDispo
 
         connection = new SqliteConnection(BuildConnectionString(dbFilePath));
         connection.Open();
+        _ = SqliteJournalModeConfigurator.TryEnableWal(connection);
 
         transaction = connection.BeginTransaction();
 
