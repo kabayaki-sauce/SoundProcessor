@@ -50,7 +50,8 @@ WAL 非対応環境では既存ジャーナルモードへ自動フォールバ�
 
 - `.NET SDK 10.x`
 - 音声処理に必要な外部ツールが利用可能であること（現行実装では `ffmpeg` / `ffprobe`。CLI オプション `--ffmpeg-path` でパス指定可能）
-- Windows / Linux / macOS で動作可能（実行確認は環境依存）
+- Windows / Linux は必須サポート対象
+- macOS は任意検証対象
 
 ## 最小コマンド
 
@@ -113,6 +114,18 @@ dotnet run --project SoundAnalyzer.Cli -- \
   --mode stft-analysis \
   --bin-count 24 \
   --upsert
+```
+
+### SoundAnalyzer.Cli (Windows 実行例)
+
+```powershell
+SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir C:\audio\split --db-file C:\data\analyze.db --mode stft-analysis --bin-count 12 --sqlite-batch-row-count 512 --sqlite-fast-mode
+```
+
+### SoundAnalyzer.Cli (Linux 実行例)
+
+```bash
+dotnet SoundAnalyzer.Cli.dll --window-size 50ms --hop 10ms --input-dir /data/audio/split --db-file /data/analyze.db --mode stft-analysis --bin-count 12 --sqlite-batch-row-count 512 --sqlite-fast-mode
 ```
 
 ## ライセンス

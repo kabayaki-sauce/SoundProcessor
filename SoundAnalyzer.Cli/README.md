@@ -4,11 +4,24 @@
 `SoundAnalyzer.Cli` はディレクトリ配下の音声ファイルを一括解析し、結果を SQLite へ保存する CLI です。  
 `peak-analysis` は `PeakAnalyzer.Core`、`stft-analysis` は `STFTAnalyzer.Core` を利用します。
 
+Windows / Linux は必須サポート対象です（SQLite モード・Postgres モードの双方で同一方針を適用します）。
+macOS は任意検証対象です。
+
 ## 実行形式
 
 ```powershell
 SoundAnalyzer.Cli.exe --window-size <len> --hop <len> --input-dir <path> --db-file <path> --mode <peak-analysis|stft-analysis> [options]
 ```
+
+```bash
+dotnet SoundAnalyzer.Cli.dll --window-size <len> --hop <len> --input-dir <path> --db-file <path> --mode <peak-analysis|stft-analysis> [options]
+```
+
+## クロスプラットフォーム方針
+
+- パス解釈は OS 依存の区切り文字を前提にせず、`.NET` の `Path` API を基準とします。
+- 証明書/鍵/known_hosts を含むファイル読み込みは `.NET` 標準 I/O で統一します。
+- エラーメッセージは OS 固有コマンド名に依存しない共通文言を採用します。
 
 ## オプション
 
@@ -158,4 +171,10 @@ SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir /path/to/dir --d
 
 ```powershell
 SoundAnalyzer.Cli.exe --window-size 2048samples --hop 512samples --target-sampling 44100hz --input-dir /path/to/dir --db-file /path/to/file.db --mode stft-analysis --bin-count 24 --upsert
+```
+
+### Linux 実行例（stft-analysis）
+
+```bash
+dotnet SoundAnalyzer.Cli.dll --window-size 2048samples --hop 512samples --target-sampling 44100hz --input-dir /path/to/dir --db-file /path/to/file.db --mode stft-analysis --bin-count 24 --upsert
 ```

@@ -308,6 +308,51 @@ public sealed class CommandLineParserTests
     }
 
     [Fact]
+    public void Parse_ShouldAcceptWindowsStylePaths()
+    {
+        string[] args =
+        [
+            "--window-size", "50ms",
+            "--hop", "10ms",
+            "--input-dir", @"C:\audio\input",
+            "--db-file", @"C:\data\analysis.db",
+            "--ffmpeg-path", @"C:\tools\ffmpeg",
+            "--mode", "peak-analysis",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Arguments);
+        Assert.Equal(@"C:\audio\input", result.Arguments.InputDirectoryPath, StringComparer.Ordinal);
+        Assert.Equal(@"C:\data\analysis.db", result.Arguments.DbFilePath, StringComparer.Ordinal);
+        Assert.Equal(@"C:\tools\ffmpeg", result.Arguments.FfmpegPath, StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_ShouldAcceptLinuxStylePaths()
+    {
+        string[] args =
+        [
+            "--window-size", "50ms",
+            "--hop", "10ms",
+            "--input-dir", "/mnt/audio/input",
+            "--db-file", "/var/tmp/analysis.db",
+            "--ffmpeg-path", "/usr/bin",
+            "--mode", "stft-analysis",
+            "--bin-count", "12",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Arguments);
+        Assert.Equal("/mnt/audio/input", result.Arguments.InputDirectoryPath, StringComparer.Ordinal);
+        Assert.Equal("/var/tmp/analysis.db", result.Arguments.DbFilePath, StringComparer.Ordinal);
+        Assert.Equal("/usr/bin", result.Arguments.FfmpegPath, StringComparer.Ordinal);
+    }
+
+    [Fact]
     public void Parse_ShouldEnableShowProgress_WhenShowProgressOptionIsSpecified()
     {
         string[] args =
