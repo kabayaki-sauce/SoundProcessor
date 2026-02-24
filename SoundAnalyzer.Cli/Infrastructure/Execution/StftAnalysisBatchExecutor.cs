@@ -21,17 +21,20 @@ internal sealed class StftAnalysisBatchExecutor
     private readonly IFfmpegLocator ffmpegLocator;
     private readonly IAudioProbeService audioProbeService;
     private readonly ITextBlockProgressDisplayFactory progressDisplayFactory;
+    private readonly IAnalysisStoreFactory analysisStoreFactory;
 
     public StftAnalysisBatchExecutor(
         StftAnalysisUseCase stftAnalysisUseCase,
         IFfmpegLocator ffmpegLocator,
         IAudioProbeService audioProbeService,
-        ITextBlockProgressDisplayFactory progressDisplayFactory)
+        ITextBlockProgressDisplayFactory progressDisplayFactory,
+        IAnalysisStoreFactory analysisStoreFactory)
     {
         this.stftAnalysisUseCase = stftAnalysisUseCase ?? throw new ArgumentNullException(nameof(stftAnalysisUseCase));
         this.ffmpegLocator = ffmpegLocator ?? throw new ArgumentNullException(nameof(ffmpegLocator));
         this.audioProbeService = audioProbeService ?? throw new ArgumentNullException(nameof(audioProbeService));
         this.progressDisplayFactory = progressDisplayFactory ?? throw new ArgumentNullException(nameof(progressDisplayFactory));
+        this.analysisStoreFactory = analysisStoreFactory ?? throw new ArgumentNullException(nameof(analysisStoreFactory));
     }
 
 #pragma warning disable CA1031
@@ -49,7 +52,11 @@ internal sealed class StftAnalysisBatchExecutor
         int binCount = arguments.BinCount ?? throw new CliException(CliErrorCode.UnsupportedMode, arguments.Mode);
         string anchorColumnName = arguments.HopUnit == AnalysisLengthUnit.Sample ? "sample" : "ms";
 
-        BatchExecutionSupport.EnsureDbDirectory(arguments.DbFilePath);
+        if (arguments.StorageBackend == StorageBackend.Sqlite)
+        {
+            BatchExecutionSupport.EnsureDbDirectory(
+                arguments.DbFilePath ?? throw new CliException(CliErrorCode.DbFileRequired, "SQLite mode requires db file path."));
+        }
         ResolvedStftAudioFiles resolved = StftAudioFileResolver.Resolve(
             arguments.InputDirectoryPath,
             arguments.Recursive);
@@ -63,15 +70,11 @@ internal sealed class StftAnalysisBatchExecutor
             arguments.InsertQueueSize);
 
         SqliteConflictMode conflictMode = BatchExecutionSupport.ResolveConflictMode(arguments);
-        SqliteWriteOptions writeOptions = new(arguments.SqliteFastMode, arguments.SqliteBatchRowCount);
-        using SqliteStftAnalysisStore store = new(
-            arguments.DbFilePath,
-            arguments.TableName,
+        using IStftAnalysisStore store = analysisStoreFactory.CreateStftStore(
+            arguments,
             anchorColumnName,
-            conflictMode,
             binCount,
-            arguments.DeleteCurrent,
-            writeOptions);
+            conflictMode);
         store.Initialize();
 
         FfmpegToolPaths toolPaths = ffmpegLocator.Resolve(arguments.FfmpegPath);

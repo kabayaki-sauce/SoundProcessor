@@ -5,11 +5,14 @@ using Cli.Shared.Extensions;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Npgsql;
 using PeakAnalyzer.Core.Application.Errors;
 using PeakAnalyzer.Core.Extensions;
+using Renci.SshNet.Common;
 using STFTAnalyzer.Core.Application.Errors;
 using STFTAnalyzer.Core.Extensions;
 using SoundAnalyzer.Cli.Infrastructure.Execution;
+using SoundAnalyzer.Cli.Infrastructure.Postgres;
 using SoundAnalyzer.Cli.Presentation.Cli.Arguments;
 using SoundAnalyzer.Cli.Presentation.Cli.Errors;
 using SoundAnalyzer.Cli.Presentation.Cli.Texts;
@@ -90,6 +93,16 @@ internal static class Entry
             WriteErrors(new[] { CliErrorMapper.ToMessage(exception) });
             return 1;
         }
+        catch (NpgsqlException exception)
+        {
+            WriteErrors(new[] { CliErrorMapper.ToMessage(exception) });
+            return 1;
+        }
+        catch (SshException exception)
+        {
+            WriteErrors(new[] { CliErrorMapper.ToMessage(exception) });
+            return 1;
+        }
         finally
         {
             System.Console.CancelKeyPress -= cancelHandler;
@@ -125,6 +138,7 @@ internal static class Entry
         builder.Services.AddCliShared();
         builder.Services.AddPeakAnalyzerCore();
         builder.Services.AddStftAnalyzerCore();
+        builder.Services.AddSingleton<IAnalysisStoreFactory, AnalysisStoreFactory>();
         builder.Services.AddSingleton<PeakAnalysisBatchExecutor>();
         builder.Services.AddSingleton<StftAnalysisBatchExecutor>();
 

@@ -27,7 +27,8 @@ internal static class BatchExecutionSupport
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dbFilePath);
 
-        string? directoryPath = Path.GetDirectoryName(dbFilePath);
+        string resolvedDbFilePath = Path.GetFullPath(dbFilePath);
+        string? directoryPath = Path.GetDirectoryName(resolvedDbFilePath);
         if (string.IsNullOrWhiteSpace(directoryPath))
         {
             return;

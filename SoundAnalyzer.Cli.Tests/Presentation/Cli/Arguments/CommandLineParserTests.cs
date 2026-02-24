@@ -24,6 +24,20 @@ public sealed class CommandLineParserTests
         "--bin-count", "12",
     ];
 
+    private static readonly string[] BasePostgresStftArgs =
+    [
+        "--window-size", "50ms",
+        "--hop", "10ms",
+        "--input-dir", "/mnt/audio/input",
+        "--mode", "stft-analysis",
+        "--bin-count", "12",
+        "--postgres",
+        "--postgres-host", "localhost",
+        "--postgres-port", "5432",
+        "--postgres-db", "audio",
+        "--postgres-user", "analyzer",
+    ];
+
     [Fact]
     public void Parse_ShouldFail_WhenUpsertAndSkipDuplicateAreSpecifiedTogether()
     {
@@ -478,5 +492,192 @@ public sealed class CommandLineParserTests
         Assert.Contains(
             result.Errors,
             error => error.Contains("Invalid integer value", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Parse_ShouldDefaultToSqliteBackend_WhenPostgresOptionIsNotSpecified()
+    {
+        CommandLineParseResult result = CommandLineParser.Parse(BaseStftArgs);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Arguments);
+        Assert.Equal(StorageBackend.Sqlite, result.Arguments.StorageBackend);
+        Assert.NotNull(result.Arguments.DbFilePath);
+        Assert.Null(result.Arguments.PostgresHost);
+    }
+
+    [Fact]
+    public void Parse_ShouldUsePostgresBackend_WhenPostgresOptionIsSpecified()
+    {
+        CommandLineParseResult result = CommandLineParser.Parse(BasePostgresStftArgs);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Arguments);
+        Assert.Equal(StorageBackend.Postgres, result.Arguments.StorageBackend);
+        Assert.Null(result.Arguments.DbFilePath);
+        Assert.Equal("localhost", result.Arguments.PostgresHost, StringComparer.Ordinal);
+        Assert.Equal(5432, result.Arguments.PostgresPort);
+        Assert.Equal("audio", result.Arguments.PostgresDatabase, StringComparer.Ordinal);
+        Assert.Equal("analyzer", result.Arguments.PostgresUser, StringComparer.Ordinal);
+        Assert.Contains(
+            result.Warnings,
+            warning => string.Equals(warning, ConsoleTexts.PostgresAuthNotProvidedWarningText, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Parse_ShouldFail_WhenPostgresRequiredOptionsAreMissing()
+    {
+        string[] args =
+        [
+            "--window-size", "50ms",
+            "--hop", "10ms",
+            "--input-dir", "/mnt/audio/input",
+            "--mode", "stft-analysis",
+            "--bin-count", "12",
+            "--postgres",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(result.Errors, error => error.Contains(ConsoleTexts.PostgresHostOption, StringComparison.Ordinal));
+        Assert.Contains(result.Errors, error => error.Contains(ConsoleTexts.PostgresPortOption, StringComparison.Ordinal));
+        Assert.Contains(result.Errors, error => error.Contains(ConsoleTexts.PostgresDbOption, StringComparison.Ordinal));
+        Assert.Contains(result.Errors, error => error.Contains(ConsoleTexts.PostgresUserOption, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Parse_ShouldFail_WhenPostgresAndDbFileAreSpecifiedTogether()
+    {
+        string[] args =
+        [
+            .. BasePostgresStftArgs,
+            "--db-file", "C:/tmp/analysis.db",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(ConsoleTexts.PostgresDbFileConflictText, result.Errors, StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_ShouldFail_WhenSqliteOptionsAreSpecifiedInPostgresMode()
+    {
+        string[] args =
+        [
+            .. BasePostgresStftArgs,
+            "--sqlite-fast-mode",
+            "--sqlite-batch-row-count", "1024",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(
+            result.Errors,
+            error => error.Contains(ConsoleTexts.SqliteFastModeOption, StringComparison.Ordinal));
+        Assert.Contains(
+            result.Errors,
+            error => error.Contains(ConsoleTexts.SqliteBatchRowCountOption, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Parse_ShouldFail_WhenPostgresOnlyOptionsAreSpecifiedInSqliteMode()
+    {
+        string[] args =
+        [
+            .. BaseStftArgs,
+            "--postgres-host", "localhost",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(
+            result.Errors,
+            error => error.Contains(ConsoleTexts.PostgresHostOption, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Parse_ShouldFail_WhenPostgresPasswordAndClientCertAreSpecifiedTogether()
+    {
+        string[] args =
+        [
+            .. BasePostgresStftArgs,
+            "--postgres-password", "secret",
+            "--postgres-sslcert-path", "/cert/client.crt",
+            "--postgres-sslkey-path", "/cert/client.key",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(ConsoleTexts.PostgresAuthConflictText, result.Errors, StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_ShouldFail_WhenPostgresSslCertAndKeyAreNotSpecifiedAsPair()
+    {
+        string[] onlyCert =
+        [
+            .. BasePostgresStftArgs,
+            "--postgres-sslcert-path", "/cert/client.crt",
+        ];
+
+        CommandLineParseResult certResult = CommandLineParser.Parse(onlyCert);
+
+        Assert.False(certResult.IsSuccess);
+        Assert.Contains(ConsoleTexts.PostgresSslPairRequiredText, certResult.Errors, StringComparer.Ordinal);
+
+        string[] onlyKey =
+        [
+            .. BasePostgresStftArgs,
+            "--postgres-sslkey-path", "/cert/client.key",
+        ];
+
+        CommandLineParseResult keyResult = CommandLineParser.Parse(onlyKey);
+
+        Assert.False(keyResult.IsSuccess);
+        Assert.Contains(ConsoleTexts.PostgresSslPairRequiredText, keyResult.Errors, StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_ShouldEnablePostgresSshAndApplyDefaultPort()
+    {
+        string[] args =
+        [
+            .. BasePostgresStftArgs,
+            "--postgres-password", "secret",
+            "--postgres-ssh-host", "ssh-gw",
+            "--postgres-ssh-user", "ubuntu",
+            "--postgres-ssh-private-key-path", "/keys/id_ed25519",
+            "--postgres-ssh-known-hosts-path", "/home/user/.ssh/known_hosts",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Arguments);
+        Assert.Equal("ssh-gw", result.Arguments.PostgresSshHost, StringComparer.Ordinal);
+        Assert.Equal(22, result.Arguments.PostgresSshPort);
+    }
+
+    [Fact]
+    public void Parse_ShouldFail_WhenPostgresSshHostIsSpecifiedWithoutRequiredSshOptions()
+    {
+        string[] args =
+        [
+            .. BasePostgresStftArgs,
+            "--postgres-password", "secret",
+            "--postgres-ssh-host", "ssh-gw",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(result.Errors, error => error.Contains(ConsoleTexts.PostgresSshUserOption, StringComparison.Ordinal));
+        Assert.Contains(result.Errors, error => error.Contains(ConsoleTexts.PostgresSshPrivateKeyPathOption, StringComparison.Ordinal));
+        Assert.Contains(result.Errors, error => error.Contains(ConsoleTexts.PostgresSshKnownHostsPathOption, StringComparison.Ordinal));
     }
 }
