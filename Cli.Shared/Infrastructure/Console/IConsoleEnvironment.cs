@@ -6,5 +6,7 @@ internal interface IConsoleEnvironment
 
     public bool IsUserInteractive { get; }
 
+    public void EnsureUtf8OutputEncoding();
+
     public TextWriter ErrorWriter { get; }
 }

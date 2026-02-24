@@ -1,0 +1,16 @@
+[Environment]
+pwsh chcp: Active code page: 65001
+cmd chcp: Active code page: 65001
+
+[pwsh run]
+command: dotnet run --project AudioSplitter.Cli -- --input-file tmp_audio_test/input.wav --output-dir C:\Users\KABAYAKI\AppData\Local\Temp\sp-progress-check-1771927404240 --level -48 --duration 2000ms --progress -y
+output:
+{"ProcessedFileCount":1,"GeneratedCount":2,"SkippedCount":0,"PromptedCount":0,"DetectedSegmentCount":2}
+
+[cmd run]
+command: cmd /c dotnet run --project AudioSplitter.Cli -- --input-file tmp_audio_test/input.wav --output-dir C:\Users\KABAYAKI\AppData\Local\Temp\sp-progress-check-cmd-1771927404258 --level -48 --duration 2000ms --progress -y
+output:
+{"ProcessedFileCount":1,"GeneratedCount":2,"SkippedCount":0,"PromptedCount":0,"DetectedSegmentCount":2}
+
+[note]
+Tool execution captures stderr/stdout as redirected streams, so progress UI is suppressed by design when IsErrorRedirected is true.
