@@ -25,7 +25,8 @@ public sealed class PostgresPeakAnalysisStoreTests
                        connectionOptions,
                        sshOptions: null,
                        tableName,
-                       SqliteConflictMode.Error))
+                       SqliteConflictMode.Error,
+                       batchRowCount: 512))
             {
                 store.Initialize();
                 store.Write(new PeakAnalysisPoint("SongA", "Piano", 50, 10, -12.5));
@@ -58,7 +59,8 @@ public sealed class PostgresPeakAnalysisStoreTests
                        connectionOptions,
                        sshOptions: null,
                        tableName,
-                       SqliteConflictMode.Upsert))
+                       SqliteConflictMode.Upsert,
+                       batchRowCount: 512))
             {
                 store.Initialize();
                 store.Write(point);
@@ -69,7 +71,8 @@ public sealed class PostgresPeakAnalysisStoreTests
                        connectionOptions,
                        sshOptions: null,
                        tableName,
-                       SqliteConflictMode.Upsert))
+                       SqliteConflictMode.Upsert,
+                       batchRowCount: 512))
             {
                 store.Initialize();
                 store.Write(new PeakAnalysisPoint("SongA", "Piano", 50, 10, -3.0));
@@ -102,7 +105,8 @@ public sealed class PostgresPeakAnalysisStoreTests
                        connectionOptions,
                        sshOptions: null,
                        tableName,
-                       SqliteConflictMode.SkipDuplicate))
+                       SqliteConflictMode.SkipDuplicate,
+                       batchRowCount: 512))
             {
                 store.Initialize();
                 store.Write(point);
@@ -111,6 +115,40 @@ public sealed class PostgresPeakAnalysisStoreTests
             }
 
             Assert.Equal(1, ReadRowCount(connectionOptions, tableName));
+        }
+        finally
+        {
+            DropTableIfExists(connectionOptions, tableName);
+        }
+    }
+
+    [Fact]
+    public void Write_ShouldInsertMultipleRows_WhenBatchRowCountIsOne()
+    {
+        PostgresConnectionOptions? connectionOptions = PostgresTestEnvironment.GetConnectionOptionsOrNull();
+        if (connectionOptions is null)
+        {
+            return;
+        }
+        string tableName = PostgresTestEnvironment.CreateRandomTableName("t_peak_pg");
+
+        try
+        {
+            using (PostgresPeakAnalysisStore store = new(
+                       connectionOptions,
+                       sshOptions: null,
+                       tableName,
+                       SqliteConflictMode.Error,
+                       batchRowCount: 1))
+            {
+                store.Initialize();
+                store.Write(new PeakAnalysisPoint("SongA", "Piano", 50, 10, -12.0));
+                store.Write(new PeakAnalysisPoint("SongA", "Piano", 50, 20, -11.0));
+                store.Write(new PeakAnalysisPoint("SongA", "Piano", 50, 30, -10.0));
+                store.Complete();
+            }
+
+            Assert.Equal(3, ReadRowCount(connectionOptions, tableName));
         }
         finally
         {

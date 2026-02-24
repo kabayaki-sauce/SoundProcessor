@@ -517,11 +517,79 @@ public sealed class CommandLineParserTests
         Assert.Null(result.Arguments.DbFilePath);
         Assert.Equal("localhost", result.Arguments.PostgresHost, StringComparer.Ordinal);
         Assert.Equal(5432, result.Arguments.PostgresPort);
+        Assert.Equal(1, result.Arguments.PostgresBatchRowCount);
         Assert.Equal("audio", result.Arguments.PostgresDatabase, StringComparer.Ordinal);
         Assert.Equal("analyzer", result.Arguments.PostgresUser, StringComparer.Ordinal);
         Assert.Contains(
             result.Warnings,
             warning => string.Equals(warning, ConsoleTexts.PostgresAuthNotProvidedWarningText, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Parse_ShouldParsePostgresBatchRowCountOption_WhenPostgresMode()
+    {
+        string[] args =
+        [
+            .. BasePostgresStftArgs,
+            "--postgres-batch-row-count", "256",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Arguments);
+        Assert.Equal(256, result.Arguments.PostgresBatchRowCount);
+    }
+
+    [Fact]
+    public void Parse_ShouldFail_WhenPostgresBatchRowCountIsInvalid()
+    {
+        string[] args =
+        [
+            .. BasePostgresStftArgs,
+            "--postgres-batch-row-count", "0",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(
+            result.Errors,
+            error => error.Contains("Invalid integer value", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Parse_ShouldFail_WhenPostgresBatchRowCountIsNegative()
+    {
+        string[] args =
+        [
+            .. BasePostgresStftArgs,
+            "--postgres-batch-row-count", "-1",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(
+            result.Errors,
+            error => error.Contains("Invalid integer value", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Parse_ShouldFail_WhenPostgresBatchRowCountIsNotNumeric()
+    {
+        string[] args =
+        [
+            .. BasePostgresStftArgs,
+            "--postgres-batch-row-count", "abc",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(
+            result.Errors,
+            error => error.Contains("Invalid integer value", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -589,6 +657,7 @@ public sealed class CommandLineParserTests
         [
             .. BaseStftArgs,
             "--postgres-host", "localhost",
+            "--postgres-batch-row-count", "12",
         ];
 
         CommandLineParseResult result = CommandLineParser.Parse(args);
@@ -597,6 +666,9 @@ public sealed class CommandLineParserTests
         Assert.Contains(
             result.Errors,
             error => error.Contains(ConsoleTexts.PostgresHostOption, StringComparison.Ordinal));
+        Assert.Contains(
+            result.Errors,
+            error => error.Contains(ConsoleTexts.PostgresBatchRowCountOption, StringComparison.Ordinal));
     }
 
     [Fact]

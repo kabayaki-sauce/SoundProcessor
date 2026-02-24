@@ -45,6 +45,7 @@ dotnet SoundAnalyzer.Cli.dll --window-size <len> --hop <len> --input-dir <path> 
 | `--postgres-ssh-user <user>` | 条件付き必須 | `--postgres-ssh-host` 指定時に必須 |
 | `--postgres-ssh-private-key-path <path>` | 条件付き必須 | `--postgres-ssh-host` 指定時に必須 |
 | `--postgres-ssh-known-hosts-path <path>` | 条件付き必須 | `--postgres-ssh-host` 指定時に必須 |
+| `--postgres-batch-row-count <n>` | 任意 | PostgreSQL モード専用。複数行 INSERT バッチ行数（既定 `1`、PostgreSQLパラメータ上限で自動クランプ） |
 | `--mode <value>` | 必須 | `peak-analysis` または `stft-analysis` |
 | `--target-sampling <n>hz` | 条件付き必須 | `stft-analysis` かつ `window/hop` のどちらかが `sample(s)` 指定の場合に必須 |
 | `--table-name-override <name>` | 任意 | テーブル名上書き |
@@ -80,6 +81,7 @@ dotnet SoundAnalyzer.Cli.dll --window-size <len> --hop <len> --input-dir <path> 
 - `--postgres` 指定時のみ PostgreSQL モードに切り替わります。
 - PostgreSQL モード時は `--db-file` を指定できません。
 - PostgreSQL モード時は `--sqlite-fast-mode` / `--sqlite-batch-row-count` を指定できません。
+- `--postgres-batch-row-count` は PostgreSQL モード専用です（SQLite モードでは指定できません）。
 - SQLite モード時に PostgreSQL 専用オプションを指定するとエラーになります。
 - PostgreSQL 認証は `--postgres-password` と `--postgres-sslcert-path + --postgres-sslkey-path` が排他です。
 - `sslcert` と `sslkey` は同時指定必須です（片側のみはエラー）。
@@ -162,7 +164,8 @@ dotnet SoundAnalyzer.Cli.dll --window-size <len> --hop <len> --input-dir <path> 
 - 競合モードは SQLite と同等です（Error / Upsert / SkipDuplicate）。
 - 既存テーブル時の STFT スキーマ検証 / bin-count 検証 / `--delete-current` 挙動は SQLite と同等です。
 - インデックスは SQLite 相当を基本とし、STFT では PostgreSQL 向けに `(name, ch, window, anchor)` 補助インデックスを明示作成します。
-- PostgreSQL 側も複数行 `INSERT ... VALUES` バッチで挿入します（内部既定 `512`）。
+- PostgreSQL 側も複数行 `INSERT ... VALUES` バッチで挿入します（`--postgres-batch-row-count` 既定 `1`）。
+  - PostgreSQL のパラメータ上限（`65535`）を超えないように自動クランプされます。
 
 ## 音声処理の扱い
 
@@ -217,11 +220,11 @@ dotnet SoundAnalyzer.Cli.dll --window-size 2048samples --hop 512samples --target
 ### PostgreSQL 実行例（Windows, password 認証）
 
 ```powershell
-SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir C:\audio\split --mode stft-analysis --bin-count 24 --postgres --postgres-host 127.0.0.1 --postgres-port 5432 --postgres-db audio --postgres-user analyzer --postgres-password secret --table-name-override T_STFT --upsert --show-progress
+SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir C:\audio\split --mode stft-analysis --bin-count 24 --postgres --postgres-host 127.0.0.1 --postgres-port 5432 --postgres-db audio --postgres-user analyzer --postgres-password secret --postgres-batch-row-count 512 --table-name-override T_STFT --upsert --show-progress
 ```
 
 ### PostgreSQL 実行例（Linux, SSH トンネル）
 
 ```bash
-dotnet SoundAnalyzer.Cli.dll --window-size 50ms --hop 10ms --input-dir /data/audio/split --mode peak-analysis --postgres --postgres-host 10.0.0.12 --postgres-port 5432 --postgres-db audio --postgres-user analyzer --postgres-password secret --postgres-ssh-host bastion.example.com --postgres-ssh-user ubuntu --postgres-ssh-private-key-path /home/ubuntu/.ssh/id_ed25519 --postgres-ssh-known-hosts-path /home/ubuntu/.ssh/known_hosts --show-progress
+dotnet SoundAnalyzer.Cli.dll --window-size 50ms --hop 10ms --input-dir /data/audio/split --mode peak-analysis --postgres --postgres-host 10.0.0.12 --postgres-port 5432 --postgres-db audio --postgres-user analyzer --postgres-password secret --postgres-batch-row-count 256 --postgres-ssh-host bastion.example.com --postgres-ssh-user ubuntu --postgres-ssh-private-key-path /home/ubuntu/.ssh/id_ed25519 --postgres-ssh-known-hosts-path /home/ubuntu/.ssh/known_hosts --show-progress
 ```

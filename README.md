@@ -12,6 +12,7 @@ AudioProcessor は、オーディオ解析・変換ツール群を提供する .
   - STFT bin は `bin_no` / `db` の縦持ち行として保存（列数上限依存を回避）
   - `--stft-proc-threads` / `--stft-file-threads` / `--insert-queue-size` で並列・キュー制御
   - 大量投入向けに `--sqlite-batch-row-count`（既定 `512`）で複数行 INSERT バッチサイズを調整可能
+  - PostgreSQLモードでは `--postgres-batch-row-count`（既定 `1`）で複数行 INSERT バッチサイズを調整可能（上限は自動クランプ）
   - `--sqlite-fast-mode` 指定時のみ SQLite 書込PRAGMAを速度優先へ切替（耐障害性トレードオフあり）
 - `--show-progress` は interactive な `pwsh/cmd` で、Songs/Threads/Queue の詳細進捗を `stderr` に表示（Thread行は単一ゲージで Insert=緑 / Analyze=白 / 未処理=斑点）
 
@@ -134,7 +135,7 @@ dotnet SoundAnalyzer.Cli.dll --window-size 50ms --hop 10ms --input-dir /data/aud
 ### SoundAnalyzer.Cli (PostgreSQL 実行例)
 
 ```powershell
-SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir C:\audio\split --mode stft-analysis --bin-count 12 --postgres --postgres-host 127.0.0.1 --postgres-port 5432 --postgres-db audio --postgres-user analyzer --postgres-password secret --show-progress
+SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir C:\audio\split --mode stft-analysis --bin-count 12 --postgres --postgres-host 127.0.0.1 --postgres-port 5432 --postgres-db audio --postgres-user analyzer --postgres-password secret --postgres-batch-row-count 512 --show-progress
 ```
 
 ## ライセンス
