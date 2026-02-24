@@ -1,4 +1,4 @@
-namespace CliShared.Application.Models;
+namespace Cli.Shared.Application.Models;
 
 public readonly record struct DualProgressState(
     string TopLabel,

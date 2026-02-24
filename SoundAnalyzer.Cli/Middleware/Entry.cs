@@ -1,6 +1,6 @@
 using System.Text.Json;
-using CliShared.Application.Ports;
-using CliShared.Extensions;
+using Cli.Shared.Application.Ports;
+using Cli.Shared.Extensions;
 using AudioProcessor.Application.Errors;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;

@@ -1,7 +1,7 @@
-using CliShared.Application.Ports;
-using CliShared.Infrastructure.Console;
+using Cli.Shared.Application.Ports;
+using Cli.Shared.Infrastructure.Console;
 
-namespace CliShared.Tests.Infrastructure.Console;
+namespace Cli.Shared.Tests.Infrastructure.Console;
 
 public sealed class ProgressDisplayFactoryTests
 {

@@ -1,7 +1,7 @@
-using CliShared.Application.Models;
-using CliShared.Application.Ports;
+using Cli.Shared.Application.Models;
+using Cli.Shared.Application.Ports;
 
-namespace CliShared.Infrastructure.Console;
+namespace Cli.Shared.Infrastructure.Console;
 
 internal sealed class NoOpProgressDisplay : IProgressDisplay
 {

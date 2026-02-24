@@ -1,6 +1,6 @@
-using CliShared.Application.Models;
+using Cli.Shared.Application.Models;
 
-namespace CliShared.Application.Ports;
+namespace Cli.Shared.Application.Ports;
 
 public interface IProgressDisplay
 {

@@ -1,5 +1,5 @@
-using CliShared.Application.Models;
-using CliShared.Application.Ports;
+using Cli.Shared.Application.Models;
+using Cli.Shared.Application.Ports;
 using AudioSplitter.Cli.Infrastructure.FileSystem;
 using AudioSplitter.Cli.Presentation.Cli.Arguments;
 using AudioSplitter.Core.Application.Models;

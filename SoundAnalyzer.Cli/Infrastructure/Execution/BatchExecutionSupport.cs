@@ -1,6 +1,6 @@
 using AudioProcessor.Domain.Models;
-using CliShared.Application.Models;
-using CliShared.Application.Ports;
+using Cli.Shared.Application.Models;
+using Cli.Shared.Application.Ports;
 using SoundAnalyzer.Cli.Infrastructure.Sqlite;
 using SoundAnalyzer.Cli.Presentation.Cli.Arguments;
 

@@ -1,9 +1,9 @@
-using CliShared.Application.Ports;
-using CliShared.Extensions;
-using CliShared.Infrastructure.Console;
+using Cli.Shared.Application.Ports;
+using Cli.Shared.Extensions;
+using Cli.Shared.Infrastructure.Console;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace CliShared.Tests.Extensions;
+namespace Cli.Shared.Tests.Extensions;
 
 public sealed class CliSharedServiceCollectionExtensionsTests
 {

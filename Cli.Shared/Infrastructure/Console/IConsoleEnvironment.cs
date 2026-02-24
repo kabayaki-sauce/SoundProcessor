@@ -1,4 +1,4 @@
-namespace CliShared.Infrastructure.Console;
+namespace Cli.Shared.Infrastructure.Console;
 
 internal interface IConsoleEnvironment
 {

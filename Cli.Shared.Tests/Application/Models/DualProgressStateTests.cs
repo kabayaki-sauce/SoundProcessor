@@ -1,6 +1,6 @@
-using CliShared.Application.Models;
+using Cli.Shared.Application.Models;
 
-namespace CliShared.Tests.Application.Models;
+namespace Cli.Shared.Tests.Application.Models;
 
 public sealed class DualProgressStateTests
 {

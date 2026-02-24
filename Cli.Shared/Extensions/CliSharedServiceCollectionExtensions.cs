@@ -1,8 +1,8 @@
-using CliShared.Application.Ports;
-using CliShared.Infrastructure.Console;
+using Cli.Shared.Application.Ports;
+using Cli.Shared.Infrastructure.Console;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace CliShared.Extensions;
+namespace Cli.Shared.Extensions;
 
 public static class CliSharedServiceCollectionExtensions
 {

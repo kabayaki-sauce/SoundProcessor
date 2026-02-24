@@ -1,4 +1,4 @@
-namespace CliShared.Application.Ports;
+namespace Cli.Shared.Application.Ports;
 
 public interface IProgressDisplayFactory
 {
