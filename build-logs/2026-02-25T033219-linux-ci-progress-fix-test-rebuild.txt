@@ -1,0 +1,188 @@
+  復元対象のプロジェクトを決定しています...
+  復元対象のすべてのプロジェクトは最新です。
+  Cli.Shared -> C:\Users\KABAYAKI\source\repos\SoundProcessor\Cli.Shared\bin\Debug\net10.0\Cli.Shared.dll
+  AudioProcessor -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioProcessor\bin\Debug\net10.0\AudioProcessor.dll
+  AudioProcessor.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioProcessor.Tests\bin\Debug\net10.0\AudioProcessor.Tests.dll
+C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioProcessor.Tests\bin\Debug\net10.0\AudioProcessor.Tests.dll (.NETCoreApp,Version=v10.0) のテスト実行
+  AudioSplitter.Core -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Core\bin\Debug\net10.0\AudioSplitter.Core.dll
+  STFTAnalyzer.Core -> C:\Users\KABAYAKI\source\repos\SoundProcessor\STFTAnalyzer.Core\bin\Debug\net10.0\STFTAnalyzer.Core.dll
+  PeakAnalyzer.Core -> C:\Users\KABAYAKI\source\repos\SoundProcessor\PeakAnalyzer.Core\bin\Debug\net10.0\PeakAnalyzer.Core.dll
+  Cli.Shared.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\Cli.Shared.Tests\bin\Debug\net10.0\Cli.Shared.Tests.dll
+C:\Users\KABAYAKI\source\repos\SoundProcessor\Cli.Shared.Tests\bin\Debug\net10.0\Cli.Shared.Tests.dll (.NETCoreApp,Version=v10.0) のテスト実行
+VSTest のバージョン 18.0.1 (x64)
+
+テスト実行を開始しています。お待ちください...
+合計 1 個のテスト ファイルが指定されたパターンと一致しました。
+VSTest のバージョン 18.0.1 (x64)
+
+テスト実行を開始しています。お待ちください...
+合計 1 個のテスト ファイルが指定されたパターンと一致しました。
+  AudioSplitter.Cli -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli\bin\Debug\net10.0\AudioSplitter.Cli.dll
+  AudioSplitter.Core.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Core.Tests\bin\Debug\net10.0\AudioSplitter.Core.Tests.dll
+  STFTAnalyzer.Core.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\STFTAnalyzer.Core.Tests\bin\Debug\net10.0\STFTAnalyzer.Core.Tests.dll
+C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Core.Tests\bin\Debug\net10.0\AudioSplitter.Core.Tests.dll (.NETCoreApp,Version=v10.0) のテスト実行
+C:\Users\KABAYAKI\source\repos\SoundProcessor\STFTAnalyzer.Core.Tests\bin\Debug\net10.0\STFTAnalyzer.Core.Tests.dll (.NETCoreApp,Version=v10.0) のテスト実行
+  PeakAnalyzer.Core.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\PeakAnalyzer.Core.Tests\bin\Debug\net10.0\PeakAnalyzer.Core.Tests.dll
+  SoundAnalyzer.Cli -> C:\Users\KABAYAKI\source\repos\SoundProcessor\SoundAnalyzer.Cli\bin\Debug\net10.0\SoundAnalyzer.Cli.dll
+C:\Users\KABAYAKI\source\repos\SoundProcessor\PeakAnalyzer.Core.Tests\bin\Debug\net10.0\PeakAnalyzer.Core.Tests.dll (.NETCoreApp,Version=v10.0) のテスト実行
+VSTest のバージョン 18.0.1 (x64)
+VSTest のバージョン 18.0.1 (x64)
+
+
+VSTest のバージョン 18.0.1 (x64)
+
+テスト実行を開始しています。お待ちください...
+テスト実行を開始しています。お待ちください...
+合計 1 個のテスト ファイルが指定されたパターンと一致しました。
+合計 1 個のテスト ファイルが指定されたパターンと一致しました。
+テスト実行を開始しています。お待ちください...
+合計 1 個のテスト ファイルが指定されたパターンと一致しました。
+
+成功!   -失敗:     0、合格:    12、スキップ:     0、合計:    12、期間: 192 ms - AudioProcessor.Tests.dll (net10.0)
+
+成功!   -失敗:     0、合格:    29、スキップ:     0、合計:    29、期間: 124 ms - Cli.Shared.Tests.dll (net10.0)
+  AudioSplitter.Cli.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.Tests.dll
+  SoundAnalyzer.Cli.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\SoundAnalyzer.Cli.Tests\bin\Debug\net10.0\SoundAnalyzer.Cli.Tests.dll
+C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.Tests.dll (.NETCoreApp,Version=v10.0) のテスト実行
+C:\Users\KABAYAKI\source\repos\SoundProcessor\SoundAnalyzer.Cli.Tests\bin\Debug\net10.0\SoundAnalyzer.Cli.Tests.dll (.NETCoreApp,Version=v10.0) のテスト実行
+VSTest のバージョン 18.0.1 (x64)
+
+VSTest のバージョン 18.0.1 (x64)
+
+
+成功!   -失敗:     0、合格:     8、スキップ:     0、合計:     8、期間: 49 ms - AudioSplitter.Core.Tests.dll (net10.0)
+
+成功!   -失敗:     0、合格:     7、スキップ:     0、合計:     7、期間: 127 ms - STFTAnalyzer.Core.Tests.dll (net10.0)
+テスト実行を開始しています。お待ちください...
+テスト実行を開始しています。お待ちください...
+合計 1 個のテスト ファイルが指定されたパターンと一致しました。
+合計 1 個のテスト ファイルが指定されたパターンと一致しました。
+
+成功!   -失敗:     0、合格:     5、スキップ:     0、合計:     5、期間: 56 ms - PeakAnalyzer.Core.Tests.dll (net10.0)
+[xUnit.net 00:00:00.83]     AudioSplitter.Cli.Tests.Presentation.Cli.Arguments.CommandLineParserTests.Parse_ShouldEnableProgress_WhenProgressOptionIsSpecified [FAIL]
+[xUnit.net 00:00:00.84]     AudioSplitter.Cli.Tests.Infrastructure.FileSystem.InputAudioFileResolverTests.Resolve_ShouldIncludeNestedFiles_WhenRecursiveIsTrue [FAIL]
+[xUnit.net 00:00:01.14]     AudioSplitter.Cli.Tests.Infrastructure.FileSystem.InputAudioFileResolverTests.Resolve_ShouldSortByPathCaseInsensitive [FAIL]
+[xUnit.net 00:00:01.32]     AudioSplitter.Cli.Tests.Presentation.Cli.Arguments.CommandLineParserTests.Parse_ShouldFail_WhenRecursiveIsSpecifiedWithoutInputDir [FAIL]
+  失敗 AudioSplitter.Cli.Tests.Presentation.Cli.Arguments.CommandLineParserTests.Parse_ShouldEnableProgress_WhenProgressOptionIsSpecified [303 ms]
+  エラー メッセージ:
+   System.IO.FileLoadException : Could not load file or assembly 'C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.dll'. アプリケーション制御ポリシーによってこのファイルがブロックされました。 (0x800711C7)
+  スタック トレース:
+     at AudioSplitter.Cli.Tests.Presentation.Cli.Arguments.CommandLineParserTests.Parse_ShouldEnableProgress_WhenProgressOptionIsSpecified()
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  失敗 AudioSplitter.Cli.Tests.Infrastructure.FileSystem.InputAudioFileResolverTests.Resolve_ShouldIncludeNestedFiles_WhenRecursiveIsTrue [450 ms]
+  エラー メッセージ:
+   System.IO.FileLoadException : Could not load file or assembly 'C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.dll'. アプリケーション制御ポリシーによってこのファイルがブロックされました。 (0x800711C7)
+  スタック トレース:
+     at AudioSplitter.Cli.Tests.Infrastructure.FileSystem.InputAudioFileResolverTests.Resolve_ShouldIncludeNestedFiles_WhenRecursiveIsTrue() in C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\Infrastructure\FileSystem\InputAudioFileResolverTests.cs:line 34
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  失敗 AudioSplitter.Cli.Tests.Infrastructure.FileSystem.InputAudioFileResolverTests.Resolve_ShouldSortByPathCaseInsensitive [311 ms]
+  エラー メッセージ:
+   System.IO.FileLoadException : Could not load file or assembly 'C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.dll'. アプリケーション制御ポリシーによってこのファイルがブロックされました。 (0x800711C7)
+  スタック トレース:
+     at AudioSplitter.Cli.Tests.Infrastructure.FileSystem.InputAudioFileResolverTests.Resolve_ShouldSortByPathCaseInsensitive() in C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\Infrastructure\FileSystem\InputAudioFileResolverTests.cs:line 89
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  失敗 AudioSplitter.Cli.Tests.Presentation.Cli.Arguments.CommandLineParserTests.Parse_ShouldFail_WhenRecursiveIsSpecifiedWithoutInputDir [487 ms]
+  エラー メッセージ:
+   System.IO.FileLoadException : Could not load file or assembly 'C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.dll'. アプリケーション制御ポリシーによってこのファイルがブロックされました。 (0x800711C7)
+  スタック トレース:
+     at AudioSplitter.Cli.Tests.Presentation.Cli.Arguments.CommandLineParserTests.Parse_ShouldFail_WhenRecursiveIsSpecifiedWithoutInputDir() in C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\Presentation\Cli\Arguments\CommandLineParserTests.cs:line 81
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:01.69]     AudioSplitter.Cli.Tests.Infrastructure.FileSystem.InputAudioFileResolverTests.Resolve_ShouldScanTopDirectoryOnly_WhenRecursiveIsFalse [FAIL]
+[xUnit.net 00:00:01.83]     AudioSplitter.Cli.Tests.Presentation.Cli.Arguments.CommandLineParserTests.Parse_ShouldFail_WhenInputFileAndInputDirAreSpecifiedTogether [FAIL]
+[xUnit.net 00:00:02.10]     AudioSplitter.Cli.Tests.Infrastructure.FileSystem.InputAudioFileResolverTests.Resolve_ShouldFilterUnsupportedExtensions [FAIL]
+[xUnit.net 00:00:02.26]     AudioSplitter.Cli.Tests.Presentation.Cli.Arguments.CommandLineParserTests.Parse_ShouldSucceed_WhenInputFileIsSpecified [FAIL]
+[xUnit.net 00:00:02.50]     AudioSplitter.Cli.Tests.Presentation.Cli.Arguments.CommandLineParserTests.Parse_ShouldSucceed_WhenInputDirAndRecursiveAreSpecified [FAIL]
+[xUnit.net 00:00:02.79]     AudioSplitter.Cli.Tests.Presentation.Cli.Arguments.CommandLineParserTests.Parse_ShouldFail_WhenInputSourceIsNotSpecified [FAIL]
+[xUnit.net 00:00:02.92]     AudioSplitter.Cli.Tests.Infrastructure.Execution.SplitAudioBatchExecutorTests.ExecuteAsync_ShouldFailFast_WhenExportFails [FAIL]
+[xUnit.net 00:00:03.03]     AudioSplitter.Cli.Tests.Infrastructure.Execution.SplitAudioBatchExecutorTests.ExecuteAsync_ShouldPreserveRelativeDirectory_WhenInputDirIsSpecified [FAIL]
+  失敗 AudioSplitter.Cli.Tests.Infrastructure.FileSystem.InputAudioFileResolverTests.Resolve_ShouldScanTopDirectoryOnly_WhenRecursiveIsFalse [546 ms]
+  エラー メッセージ:
+   System.IO.FileLoadException : Could not load file or assembly 'C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.dll'. アプリケーション制御ポリシーによってこのファイルがブロックされました。 (0x800711C7)
+  スタック トレース:
+     at AudioSplitter.Cli.Tests.Infrastructure.FileSystem.InputAudioFileResolverTests.Resolve_ShouldScanTopDirectoryOnly_WhenRecursiveIsFalse() in C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\Infrastructure\FileSystem\InputAudioFileResolverTests.cs:line 9
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  失敗 AudioSplitter.Cli.Tests.Presentation.Cli.Arguments.CommandLineParserTests.Parse_ShouldFail_WhenInputFileAndInputDirAreSpecifiedTogether [514 ms]
+  エラー メッセージ:
+   System.IO.FileLoadException : Could not load file or assembly 'C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.dll'. アプリケーション制御ポリシーによってこのファイルがブロックされました。 (0x800711C7)
+  スタック トレース:
+     at AudioSplitter.Cli.Tests.Presentation.Cli.Arguments.CommandLineParserTests.Parse_ShouldFail_WhenInputFileAndInputDirAreSpecifiedTogether() in C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\Presentation\Cli\Arguments\CommandLineParserTests.cs:line 54
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  失敗 AudioSplitter.Cli.Tests.Infrastructure.FileSystem.InputAudioFileResolverTests.Resolve_ShouldFilterUnsupportedExtensions [413 ms]
+  エラー メッセージ:
+   System.IO.FileLoadException : Could not load file or assembly 'C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.dll'. アプリケーション制御ポリシーによってこのファイルがブロックされました。 (0x800711C7)
+  スタック トレース:
+     at AudioSplitter.Cli.Tests.Infrastructure.FileSystem.InputAudioFileResolverTests.Resolve_ShouldFilterUnsupportedExtensions() in C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\Infrastructure\FileSystem\InputAudioFileResolverTests.cs:line 66
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  失敗 AudioSplitter.Cli.Tests.Presentation.Cli.Arguments.CommandLineParserTests.Parse_ShouldSucceed_WhenInputFileIsSpecified [430 ms]
+  エラー メッセージ:
+   System.IO.FileLoadException : Could not load file or assembly 'C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.dll'. アプリケーション制御ポリシーによってこのファイルがブロックされました。 (0x800711C7)
+  スタック トレース:
+     at AudioSplitter.Cli.Tests.Presentation.Cli.Arguments.CommandLineParserTests.Parse_ShouldSucceed_WhenInputFileIsSpecified() in C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\Presentation\Cli\Arguments\CommandLineParserTests.cs:line 17
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  失敗 AudioSplitter.Cli.Tests.Presentation.Cli.Arguments.CommandLineParserTests.Parse_ShouldSucceed_WhenInputDirAndRecursiveAreSpecified [243 ms]
+  エラー メッセージ:
+   System.IO.FileLoadException : Could not load file or assembly 'C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.dll'. アプリケーション制御ポリシーによってこのファイルがブロックされました。 (0x800711C7)
+  スタック トレース:
+     at AudioSplitter.Cli.Tests.Presentation.Cli.Arguments.CommandLineParserTests.Parse_ShouldSucceed_WhenInputDirAndRecursiveAreSpecified() in C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\Presentation\Cli\Arguments\CommandLineParserTests.cs:line 35
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  失敗 AudioSplitter.Cli.Tests.Presentation.Cli.Arguments.CommandLineParserTests.Parse_ShouldFail_WhenInputSourceIsNotSpecified [282 ms]
+  エラー メッセージ:
+   System.IO.FileLoadException : Could not load file or assembly 'C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.dll'. アプリケーション制御ポリシーによってこのファイルがブロックされました。 (0x800711C7)
+  スタック トレース:
+     at AudioSplitter.Cli.Tests.Presentation.Cli.Arguments.CommandLineParserTests.Parse_ShouldFail_WhenInputSourceIsNotSpecified() in C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\Presentation\Cli\Arguments\CommandLineParserTests.cs:line 70
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+  失敗 AudioSplitter.Cli.Tests.Infrastructure.Execution.SplitAudioBatchExecutorTests.ExecuteAsync_ShouldFailFast_WhenExportFails [600 ms]
+  エラー メッセージ:
+   System.IO.FileLoadException : Could not load file or assembly 'C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.dll'. アプリケーション制御ポリシーによってこのファイルがブロックされました。 (0x800711C7)
+  スタック トレース:
+     at AudioSplitter.Cli.Tests.Infrastructure.Execution.SplitAudioBatchExecutorTests.ExecuteAsync_ShouldFailFast_WhenExportFails() in C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\Infrastructure\Execution\SplitAudioBatchExecutorTests.cs:line 0
+   at AudioSplitter.Cli.Tests.Infrastructure.Execution.SplitAudioBatchExecutorTests.ExecuteAsync_ShouldFailFast_WhenExportFails() in C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\Infrastructure\Execution\SplitAudioBatchExecutorTests.cs:line 0
+   at System.Runtime.CompilerServices.AsyncMethodBuilderCore.Start[TStateMachine](TStateMachine& stateMachine)
+   at AudioSplitter.Cli.Tests.Infrastructure.Execution.SplitAudioBatchExecutorTests.ExecuteAsync_ShouldFailFast_WhenExportFails()
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  失敗 AudioSplitter.Cli.Tests.Infrastructure.Execution.SplitAudioBatchExecutorTests.ExecuteAsync_ShouldPreserveRelativeDirectory_WhenInputDirIsSpecified [110 ms]
+  エラー メッセージ:
+   System.IO.FileLoadException : Could not load file or assembly 'C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.dll'. アプリケーション制御ポリシーによってこのファイルがブロックされました。 (0x800711C7)
+  スタック トレース:
+     at AudioSplitter.Cli.Tests.Infrastructure.Execution.SplitAudioBatchExecutorTests.ExecuteAsync_ShouldPreserveRelativeDirectory_WhenInputDirIsSpecified()
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+
+[xUnit.net 00:00:03.15]     AudioSplitter.Cli.Tests.Infrastructure.Execution.SplitAudioBatchExecutorTests.ExecuteAsync_ShouldReturnZeroSummary_WhenNoSupportedFileExists [FAIL]
+成功!   -失敗:     0、合格:    81、スキップ:     0、合計:    81、期間: 2 s - SoundAnalyzer.Cli.Tests.dll (net10.0)
+[xUnit.net 00:00:03.29]     AudioSplitter.Cli.Tests.Infrastructure.Execution.SplitAudioBatchExecutorTests.ExecuteAsync_ShouldThrowCliException_WhenInputDirectoryDoesNotExist [FAIL]
+[xUnit.net 00:00:03.39]     AudioSplitter.Cli.Tests.Infrastructure.Execution.SplitAudioBatchExecutorTests.ExecuteAsync_ShouldAggregateSummary_WhenInputFileIsSpecified [FAIL]
+  失敗 AudioSplitter.Cli.Tests.Infrastructure.Execution.SplitAudioBatchExecutorTests.ExecuteAsync_ShouldReturnZeroSummary_WhenNoSupportedFileExists [125 ms]
+  エラー メッセージ:
+   System.IO.FileLoadException : Could not load file or assembly 'C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.dll'. アプリケーション制御ポリシーによってこのファイルがブロックされました。 (0x800711C7)
+  スタック トレース:
+     at AudioSplitter.Cli.Tests.Infrastructure.Execution.SplitAudioBatchExecutorTests.ExecuteAsync_ShouldReturnZeroSummary_WhenNoSupportedFileExists()
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+  失敗 AudioSplitter.Cli.Tests.Infrastructure.Execution.SplitAudioBatchExecutorTests.ExecuteAsync_ShouldThrowCliException_WhenInputDirectoryDoesNotExist [130 ms]
+  エラー メッセージ:
+   System.IO.FileLoadException : Could not load file or assembly 'C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.dll'. アプリケーション制御ポリシーによってこのファイルがブロックされました。 (0x800711C7)
+  スタック トレース:
+     at AudioSplitter.Cli.Tests.Infrastructure.Execution.SplitAudioBatchExecutorTests.ExecuteAsync_ShouldThrowCliException_WhenInputDirectoryDoesNotExist()
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+  失敗 AudioSplitter.Cli.Tests.Infrastructure.Execution.SplitAudioBatchExecutorTests.ExecuteAsync_ShouldAggregateSummary_WhenInputFileIsSpecified [106 ms]
+  エラー メッセージ:
+   System.IO.FileLoadException : Could not load file or assembly 'C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.dll'. アプリケーション制御ポリシーによってこのファイルがブロックされました。 (0x800711C7)
+  スタック トレース:
+     at AudioSplitter.Cli.Tests.Infrastructure.Execution.SplitAudioBatchExecutorTests.ExecuteAsync_ShouldAggregateSummary_WhenInputFileIsSpecified()
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+
+失敗!   -失敗:    15、合格:     0、スキップ:     0、合計:    15、期間: 3 s - AudioSplitter.Cli.Tests.dll (net10.0)
