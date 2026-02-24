@@ -25,12 +25,18 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
     private long totalEnqueued;
     private long totalInserted;
     private int queueCapacity = 1;
+    private bool useRelativeAnsiCursor;
     private bool disposed;
 
-    private SoundAnalyzerProgressTracker(bool enabled, bool ansiEnabled, TextWriter writer)
+    private SoundAnalyzerProgressTracker(
+        bool enabled,
+        bool ansiEnabled,
+        bool useRelativeAnsiCursor,
+        TextWriter writer)
     {
         this.enabled = enabled;
         this.ansiEnabled = ansiEnabled;
+        this.useRelativeAnsiCursor = useRelativeAnsiCursor;
         this.writer = writer ?? throw new ArgumentNullException(nameof(writer));
     }
 
@@ -38,23 +44,24 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
     {
         if (!showProgress)
         {
-            return new SoundAnalyzerProgressTracker(false, false, TextWriter.Null);
+            return new SoundAnalyzerProgressTracker(false, false, false, TextWriter.Null);
         }
 
         bool interactive = !System.Console.IsErrorRedirected && Environment.UserInteractive;
         if (!interactive)
         {
-            return new SoundAnalyzerProgressTracker(false, false, TextWriter.Null);
+            return new SoundAnalyzerProgressTracker(false, false, false, TextWriter.Null);
         }
 
         System.Console.OutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
         bool ansiEnabled = IsAnsiEnabled();
-        return new SoundAnalyzerProgressTracker(true, ansiEnabled, System.Console.Error);
+        bool useRelativeAnsiCursor = ansiEnabled && System.Console.IsOutputRedirected;
+        return new SoundAnalyzerProgressTracker(true, ansiEnabled, useRelativeAnsiCursor, System.Console.Error);
     }
 
     internal static SoundAnalyzerProgressTracker CreateForTest(bool ansiEnabled, TextWriter writer)
     {
-        return new SoundAnalyzerProgressTracker(true, ansiEnabled, writer);
+        return new SoundAnalyzerProgressTracker(true, ansiEnabled, false, writer);
     }
 
     public void Configure(IReadOnlyList<string> songNames, int threadCount, int queueCapacity)
@@ -212,9 +219,9 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
             }
 
             Render(force: true);
-            if (enabled && renderedLineCount > 0 && originTop >= 0)
+            if (enabled && renderedLineCount > 0 && !useRelativeAnsiCursor && originTop >= 0)
             {
-                TrySetCursorPosition(0, originTop + renderedLineCount);
+                _ = TrySetCursorPosition(0, originTop + renderedLineCount);
             }
         }
     }
@@ -255,14 +262,7 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
         List<string> lines = BuildLines();
         int width = ResolveWidth();
 
-        if (originTop < 0)
-        {
-            originTop = GetCurrentCursorTop();
-        }
-        else
-        {
-            TrySetCursorPosition(0, originTop);
-        }
+        MoveCursorToRenderOrigin();
 
         for (int i = 0; i < lines.Count; i++)
         {
@@ -278,6 +278,42 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
         }
 
         renderedLineCount = lines.Count;
+    }
+
+    private void MoveCursorToRenderOrigin()
+    {
+        if (useRelativeAnsiCursor)
+        {
+            if (renderedLineCount > 0)
+            {
+                writer.Write(string.Create(CultureInfo.InvariantCulture, $"\u001b[{renderedLineCount}F"));
+                writer.Flush();
+            }
+
+            return;
+        }
+
+        if (originTop < 0)
+        {
+            originTop = GetCurrentCursorTop();
+            return;
+        }
+
+        bool moved = TrySetCursorPosition(0, originTop);
+        if (moved)
+        {
+            return;
+        }
+
+        if (ansiEnabled && renderedLineCount > 0)
+        {
+            useRelativeAnsiCursor = true;
+            writer.Write(string.Create(CultureInfo.InvariantCulture, $"\u001b[{renderedLineCount}F"));
+            writer.Flush();
+            return;
+        }
+
+        originTop = GetCurrentCursorTop();
     }
 
     private List<string> BuildLines()
@@ -518,8 +554,9 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
 
     private void WriteLineFixed(string text, int width)
     {
-        writer.Write(text);
-        int displayLength = GetDisplayLength(text);
+        string safeText = TruncateToDisplayWidth(text, width);
+        writer.Write(safeText);
+        int displayLength = GetDisplayLength(safeText);
         if (displayLength < width)
         {
             writer.Write(new string(' ', width - displayLength));
@@ -527,6 +564,80 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
 
         writer.WriteLine();
         writer.Flush();
+    }
+
+    private static string TruncateToDisplayWidth(string text, int width)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        if (width <= 0 || text.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        StringBuilder builder = new(capacity: text.Length);
+        int displayLength = 0;
+        int index = 0;
+        bool styleActive = false;
+
+        while (index < text.Length && displayLength < width)
+        {
+            if (text[index] == '\u001b' && index + 1 < text.Length && text[index + 1] == '[')
+            {
+                if (!TryReadAnsiEscape(text, index, out int escapeEnd, out string? code))
+                {
+                    break;
+                }
+
+                builder.Append(text, index, escapeEnd - index + 1);
+                styleActive = code is not null && !string.Equals(code, "0", StringComparison.Ordinal);
+                index = escapeEnd + 1;
+                continue;
+            }
+
+            builder.Append(text[index]);
+            displayLength++;
+            index++;
+        }
+
+        while (index < text.Length && text[index] == '\u001b' && index + 1 < text.Length && text[index + 1] == '[')
+        {
+            if (!TryReadAnsiEscape(text, index, out int escapeEnd, out string? code))
+            {
+                break;
+            }
+
+            builder.Append(text, index, escapeEnd - index + 1);
+            styleActive = code is not null && !string.Equals(code, "0", StringComparison.Ordinal);
+            index = escapeEnd + 1;
+        }
+
+        if (styleActive)
+        {
+            builder.Append("\u001b[0m");
+        }
+
+        return builder.ToString();
+    }
+
+    private static bool TryReadAnsiEscape(string text, int index, out int escapeEnd, out string? code)
+    {
+        escapeEnd = index;
+        code = null;
+
+        int cursor = index + 2;
+        while (cursor < text.Length && text[cursor] != 'm')
+        {
+            cursor++;
+        }
+
+        if (cursor >= text.Length)
+        {
+            return false;
+        }
+
+        code = text[(index + 2)..cursor];
+        escapeEnd = cursor;
+        return true;
     }
 
     private static int GetDisplayLength(string text)
@@ -575,7 +686,18 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
         }
         catch (Exception ex) when (ex is IOException or ArgumentOutOfRangeException)
         {
-            return 160;
+            string? columnsText = Environment.GetEnvironmentVariable("COLUMNS");
+            bool parsed = int.TryParse(
+                columnsText,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out int parsedColumns);
+            if (parsed && parsedColumns > 1)
+            {
+                return Math.Max(60, parsedColumns - 1);
+            }
+
+            return 80;
         }
     }
 
@@ -591,15 +713,16 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
         }
     }
 
-    private void TrySetCursorPosition(int left, int top)
+    private static bool TrySetCursorPosition(int left, int top)
     {
         try
         {
             System.Console.SetCursorPosition(left, top);
+            return true;
         }
         catch (Exception ex) when (ex is IOException or ArgumentOutOfRangeException)
         {
-            originTop = GetCurrentCursorTop();
+            return false;
         }
     }
 
