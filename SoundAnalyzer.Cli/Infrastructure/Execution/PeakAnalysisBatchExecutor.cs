@@ -1,14 +1,11 @@
-using System.Globalization;
-using AudioProcessor.Application.Models;
-using AudioProcessor.Application.Ports;
-using AudioProcessor.Domain.Models;
-using Cli.Shared.Application.Models;
-using Cli.Shared.Application.Ports;
+using System.Runtime.ExceptionServices;
+using System.Threading.Channels;
 using PeakAnalyzer.Core.Application.Models;
 using PeakAnalyzer.Core.Application.Ports;
 using PeakAnalyzer.Core.Application.UseCases;
 using PeakAnalyzer.Core.Domain.Models;
 using SoundAnalyzer.Cli.Infrastructure.FileSystem;
+using SoundAnalyzer.Cli.Infrastructure.Progress;
 using SoundAnalyzer.Cli.Infrastructure.Sqlite;
 using SoundAnalyzer.Cli.Presentation.Cli.Arguments;
 
@@ -17,33 +14,18 @@ namespace SoundAnalyzer.Cli.Infrastructure.Execution;
 internal sealed class PeakAnalysisBatchExecutor
 {
     private readonly PeakAnalysisUseCase peakAnalysisUseCase;
-    private readonly IFfmpegLocator ffmpegLocator;
-    private readonly IAudioProbeService audioProbeService;
 
-    public PeakAnalysisBatchExecutor(
-        PeakAnalysisUseCase peakAnalysisUseCase,
-        IFfmpegLocator ffmpegLocator,
-        IAudioProbeService audioProbeService)
+    public PeakAnalysisBatchExecutor(PeakAnalysisUseCase peakAnalysisUseCase)
     {
         this.peakAnalysisUseCase = peakAnalysisUseCase ?? throw new ArgumentNullException(nameof(peakAnalysisUseCase));
-        this.ffmpegLocator = ffmpegLocator ?? throw new ArgumentNullException(nameof(ffmpegLocator));
-        this.audioProbeService = audioProbeService ?? throw new ArgumentNullException(nameof(audioProbeService));
     }
 
+#pragma warning disable CA1031
     public async Task<PeakAnalysisBatchSummary> ExecuteAsync(
         CommandLineArguments arguments,
-        CancellationToken cancellationToken)
-    {
-        return await ExecuteAsync(arguments, SilentProgressDisplay.Instance, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<PeakAnalysisBatchSummary> ExecuteAsync(
-        CommandLineArguments arguments,
-        IProgressDisplay progressDisplay,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(arguments);
-        ArgumentNullException.ThrowIfNull(progressDisplay);
 
         if (!Directory.Exists(arguments.InputDirectoryPath))
         {
@@ -55,74 +37,135 @@ internal sealed class PeakAnalysisBatchExecutor
         ResolvedStemAudioFiles resolved = StemAudioFileResolver.Resolve(
             arguments.InputDirectoryPath,
             arguments.Stems);
-
+        List<SongBatch> songs = BuildSongBatches(resolved.Files);
         SqliteConflictMode conflictMode = BatchExecutionSupport.ResolveConflictMode(arguments);
 
-        long writtenPointCount = 0;
+        using SoundAnalyzerProgressTracker progressTracker = SoundAnalyzerProgressTracker.Create(arguments.ShowProgress);
+        progressTracker.Configure(
+            songs.Select(song => song.Name).ToArray(),
+            arguments.PeakFileThreads,
+            arguments.InsertQueueSize);
+
         using SqlitePeakAnalysisStore store = new(arguments.DbFilePath, arguments.TableName, conflictMode);
         store.Initialize();
 
-        IReadOnlyList<SongBatch> songs = await BuildSongBatchesAsync(resolved.Files, arguments, cancellationToken)
-            .ConfigureAwait(false);
-        long completedSongCount = 0;
+        using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        CancellationToken executionToken = linkedCts.Token;
 
-        for (int songIndex = 0; songIndex < songs.Count; songIndex++)
+        BoundedChannelOptions insertChannelOptions = new(arguments.InsertQueueSize)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.Wait,
+        };
 
-            SongBatch song = songs[songIndex];
-            long writtenForSong = 0;
-            ReportSongProgress(progressDisplay, song.Name, songs.Count, completedSongCount, writtenForSong, song.EstimatedPointCount);
+        Channel<QueuedPeakPoint> insertChannel = Channel.CreateBounded<QueuedPeakPoint>(insertChannelOptions);
+        Exception? consumerException = null;
+        long insertedPointCount = 0;
 
-            for (int targetIndex = 0; targetIndex < song.Targets.Count; targetIndex++)
+        Task consumerTask = Task.Run(
+            async () =>
             {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                StemAudioFile target = song.Targets[targetIndex];
-                PeakAnalysisRequest request = new(
-                    target.FilePath,
-                    target.Name,
-                    target.Stem,
-                    arguments.WindowSizeMs,
-                    arguments.HopMs,
-                    arguments.MinLimitDb,
-                    arguments.FfmpegPath);
-
-                ProgressReportingPeakWriter reportingWriter = new(
-                    store,
-                    pointCount =>
+                try
+                {
+                    await foreach (QueuedPeakPoint queuedPoint in insertChannel.Reader.ReadAllAsync(executionToken).ConfigureAwait(false))
                     {
-                        writtenForSong = checked(writtenForSong + pointCount);
-                        ReportSongProgress(
-                            progressDisplay,
-                            song.Name,
-                            songs.Count,
-                            completedSongCount,
-                            writtenForSong,
-                            song.EstimatedPointCount);
-                    });
+                        store.Write(queuedPoint.Point);
+                        insertedPointCount++;
+                        progressTracker.IncrementInserted(queuedPoint.SongName);
+                    }
+                }
+                catch (OperationCanceledException) when (executionToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    consumerException = ex;
+                    await linkedCts.CancelAsync().ConfigureAwait(false);
+                }
+            },
+            CancellationToken.None);
 
-                PeakAnalysisSummary summary = await peakAnalysisUseCase
-                    .ExecuteAsync(request, reportingWriter, cancellationToken)
-                    .ConfigureAwait(false);
+        QueuedPeakWriter queuedWriter = new(
+            insertChannel.Writer,
+            progressTracker,
+            () => consumerException,
+            executionToken);
 
-                writtenPointCount = checked(writtenPointCount + summary.PointCount);
+        Channel<SongBatch> songChannel = Channel.CreateUnbounded<SongBatch>(
+            new UnboundedChannelOptions
+            {
+                SingleWriter = true,
+                SingleReader = false,
+            });
+
+        for (int i = 0; i < songs.Count; i++)
+        {
+            if (!songChannel.Writer.TryWrite(songs[i]))
+            {
+                throw new InvalidOperationException("Failed to enqueue song job.");
             }
-
-            completedSongCount++;
-            ReportSongProgress(progressDisplay, song.Name, songs.Count, completedSongCount, song.EstimatedPointCount, song.EstimatedPointCount);
         }
 
-        if (songs.Count == 0)
+        songChannel.Writer.TryComplete();
+
+        Task[] workerTasks = new Task[arguments.PeakFileThreads];
+        for (int workerId = 0; workerId < workerTasks.Length; workerId++)
         {
-            BatchExecutionSupport.ReportDualProgress(
-                progressDisplay,
-                "Songs 0/0",
-                1,
-                1,
-                "Current song",
-                1,
-                1);
+            int capturedWorkerId = workerId;
+            workerTasks[workerId] = Task.Run(
+                async () =>
+                {
+                    await foreach (SongBatch song in songChannel.Reader.ReadAllAsync(executionToken).ConfigureAwait(false))
+                    {
+                        progressTracker.SetWorkerSong(capturedWorkerId, song.Name);
+                        try
+                        {
+                            await ProcessSongAsync(song, arguments, queuedWriter, executionToken).ConfigureAwait(false);
+                            progressTracker.MarkWorkerAnalyzeCompleted(capturedWorkerId);
+                        }
+                        finally
+                        {
+                            progressTracker.SetWorkerIdle(capturedWorkerId);
+                        }
+                    }
+                },
+                CancellationToken.None);
+        }
+
+        Exception? producerException = null;
+        try
+        {
+            await Task.WhenAll(workerTasks).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            producerException = ex;
+            await linkedCts.CancelAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            insertChannel.Writer.TryComplete(producerException);
+        }
+
+        try
+        {
+            await consumerTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (executionToken.IsCancellationRequested)
+        {
+            throw;
+        }
+
+        if (consumerException is not null)
+        {
+            throw new CliException(CliErrorCode.None, "Insert pipeline failed.", consumerException);
+        }
+
+        if (producerException is not null)
+        {
+            ExceptionDispatchInfo.Capture(producerException).Throw();
         }
 
         store.Complete();
@@ -131,166 +174,127 @@ internal sealed class PeakAnalysisBatchExecutor
             resolved.DirectoryCount,
             resolved.Files.Count,
             resolved.SkippedStemCount,
-            writtenPointCount,
+            insertedPointCount,
             arguments.TableName);
     }
+#pragma warning restore CA1031
 
-    private async Task<IReadOnlyList<SongBatch>> BuildSongBatchesAsync(
-        IReadOnlyList<StemAudioFile> files,
+    private async Task ProcessSongAsync(
+        SongBatch song,
         CommandLineArguments arguments,
+        IPeakAnalysisPointWriter queuedWriter,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(files);
+        ArgumentNullException.ThrowIfNull(song);
         ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentNullException.ThrowIfNull(queuedWriter);
 
-        Dictionary<string, SongBatchBuilder> builders = new(StringComparer.OrdinalIgnoreCase);
-        List<string> orderedNames = new();
-        FfmpegToolPaths toolPaths = ffmpegLocator.Resolve(arguments.FfmpegPath);
+        ParallelOptions options = new()
+        {
+            CancellationToken = cancellationToken,
+            MaxDegreeOfParallelism = arguments.PeakProcThreads,
+        };
+
+        await Parallel.ForEachAsync(
+                song.Targets,
+                options,
+                async (target, token) =>
+                {
+                    PeakAnalysisRequest request = new(
+                        target.FilePath,
+                        target.Name,
+                        target.Stem,
+                        arguments.WindowSizeMs,
+                        arguments.HopMs,
+                        arguments.MinLimitDb,
+                        arguments.FfmpegPath);
+
+                    _ = await peakAnalysisUseCase
+                        .ExecuteAsync(request, queuedWriter, token)
+                        .ConfigureAwait(false);
+                })
+            .ConfigureAwait(false);
+    }
+
+    private static List<SongBatch> BuildSongBatches(IReadOnlyList<StemAudioFile> files)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+
+        Dictionary<string, List<StemAudioFile>> groupedTargets = new(StringComparer.OrdinalIgnoreCase);
+        List<string> orderedSongNames = new();
 
         for (int i = 0; i < files.Count; i++)
         {
-            cancellationToken.ThrowIfCancellationRequested();
             StemAudioFile file = files[i];
-            if (!builders.TryGetValue(file.Name, out SongBatchBuilder? builder))
+            if (!groupedTargets.TryGetValue(file.Name, out List<StemAudioFile>? targets))
             {
-                builder = new SongBatchBuilder(file.Name);
-                builders[file.Name] = builder;
-                orderedNames.Add(file.Name);
+                targets = new List<StemAudioFile>();
+                groupedTargets[file.Name] = targets;
+                orderedSongNames.Add(file.Name);
             }
 
-            AudioStreamInfo streamInfo = await audioProbeService
-                .ProbeAsync(toolPaths, file.FilePath, cancellationToken)
-                .ConfigureAwait(false);
-            long estimatedPointCount = BatchExecutionSupport.EstimateAnchorCount(streamInfo, arguments.HopMs);
-
-            builder.Targets.Add(file);
-            builder.EstimatedPointCount = checked(builder.EstimatedPointCount + estimatedPointCount);
+            targets.Add(file);
         }
 
-        List<SongBatch> songs = new(orderedNames.Count);
-        for (int i = 0; i < orderedNames.Count; i++)
+        List<SongBatch> songs = new(orderedSongNames.Count);
+        for (int i = 0; i < orderedSongNames.Count; i++)
         {
-            SongBatchBuilder builder = builders[orderedNames[i]];
-            songs.Add(new SongBatch(builder.Name, builder.Targets, builder.EstimatedPointCount));
+            string songName = orderedSongNames[i];
+            songs.Add(new SongBatch(songName, groupedTargets[songName]));
         }
 
         return songs;
     }
 
-    private static void ReportSongProgress(
-        IProgressDisplay progressDisplay,
-        string songName,
-        int totalSongs,
-        long completedSongCount,
-        long songWrittenPoints,
-        long songEstimatedPoints)
+    private sealed class QueuedPeakWriter : IPeakAnalysisPointWriter
     {
-        ArgumentNullException.ThrowIfNull(progressDisplay);
-        ArgumentException.ThrowIfNullOrWhiteSpace(songName);
-        ArgumentOutOfRangeException.ThrowIfNegative(totalSongs);
-        ArgumentOutOfRangeException.ThrowIfNegative(completedSongCount);
-        ArgumentOutOfRangeException.ThrowIfNegative(songWrittenPoints);
-        ArgumentOutOfRangeException.ThrowIfNegative(songEstimatedPoints);
+        private readonly ChannelWriter<QueuedPeakPoint> writer;
+        private readonly SoundAnalyzerProgressTracker progressTracker;
+        private readonly CancellationToken cancellationToken;
+        private readonly Func<Exception?> consumerExceptionProvider;
 
-        long safeSongTotal = songEstimatedPoints > 0 ? songEstimatedPoints : Math.Max(songWrittenPoints, 1);
-        long safeTopTotal = totalSongs > 0 ? totalSongs : 1;
-        const long topScale = 1000;
-        long safeTopTotalScaled = checked(safeTopTotal * topScale);
-        long safeTopProcessedScaled = totalSongs > 0 ? checked(completedSongCount * topScale) : topScale;
-
-        double songRatio = BatchExecutionSupport.ToRatio(songWrittenPoints, safeSongTotal);
-        if (totalSongs > 0 && completedSongCount < safeTopTotal)
+        public QueuedPeakWriter(
+            ChannelWriter<QueuedPeakPoint> writer,
+            SoundAnalyzerProgressTracker progressTracker,
+            Func<Exception?> consumerExceptionProvider,
+            CancellationToken cancellationToken)
         {
-            safeTopProcessedScaled = Math.Min(
-                safeTopTotalScaled,
-                checked(safeTopProcessedScaled + (long)Math.Round(songRatio * topScale, MidpointRounding.AwayFromZero)));
+            this.writer = writer ?? throw new ArgumentNullException(nameof(writer));
+            this.progressTracker = progressTracker ?? throw new ArgumentNullException(nameof(progressTracker));
+            this.cancellationToken = cancellationToken;
+            this.consumerExceptionProvider = consumerExceptionProvider ?? throw new ArgumentNullException(nameof(consumerExceptionProvider));
         }
 
-        string topLabel = string.Create(
-            CultureInfo.InvariantCulture,
-            $"Songs {Math.Min(completedSongCount, safeTopTotal)}/{safeTopTotal} [{songName}]");
-        string bottomLabel = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{songName} points {Math.Min(songWrittenPoints, safeSongTotal)}/{safeSongTotal}");
+        public void Write(PeakAnalysisPoint point)
+        {
+            ArgumentNullException.ThrowIfNull(point);
 
-        BatchExecutionSupport.ReportDualProgress(
-            progressDisplay,
-            topLabel,
-            safeTopProcessedScaled,
-            safeTopTotalScaled,
-            bottomLabel,
-            songWrittenPoints,
-            safeSongTotal);
+            Exception? consumerException = consumerExceptionProvider();
+            if (consumerException is not null)
+            {
+                throw new CliException(CliErrorCode.None, "Insert pipeline failed.", consumerException);
+            }
+
+            writer.WriteAsync(new QueuedPeakPoint(point.Name, point), cancellationToken).AsTask().GetAwaiter().GetResult();
+            progressTracker.IncrementEnqueued(point.Name);
+        }
     }
 
     private sealed class SongBatch
     {
-        public SongBatch(string name, IReadOnlyList<StemAudioFile> targets, long estimatedPointCount)
+        public SongBatch(string name, IReadOnlyList<StemAudioFile> targets)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(name);
             ArgumentNullException.ThrowIfNull(targets);
-            ArgumentOutOfRangeException.ThrowIfNegative(estimatedPointCount);
 
             Name = name;
             Targets = targets;
-            EstimatedPointCount = estimatedPointCount;
         }
 
         public string Name { get; }
 
         public IReadOnlyList<StemAudioFile> Targets { get; }
-
-        public long EstimatedPointCount { get; }
     }
 
-    private sealed class SongBatchBuilder
-    {
-        public SongBatchBuilder(string name)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(name);
-            Name = name;
-        }
-
-        public string Name { get; }
-
-        public List<StemAudioFile> Targets { get; } = new();
-
-        public long EstimatedPointCount { get; set; }
-    }
-
-    private sealed class ProgressReportingPeakWriter : IPeakAnalysisPointWriter
-    {
-        private readonly IPeakAnalysisPointWriter inner;
-        private readonly Action<int> onWrite;
-
-        public ProgressReportingPeakWriter(IPeakAnalysisPointWriter inner, Action<int> onWrite)
-        {
-            this.inner = inner ?? throw new ArgumentNullException(nameof(inner));
-            this.onWrite = onWrite ?? throw new ArgumentNullException(nameof(onWrite));
-        }
-
-        public void Write(PeakAnalysisPoint point)
-        {
-            inner.Write(point);
-            onWrite(1);
-        }
-    }
-
-    private sealed class SilentProgressDisplay : IProgressDisplay
-    {
-        public static SilentProgressDisplay Instance { get; } = new();
-
-        private SilentProgressDisplay()
-        {
-        }
-
-        public void Report(DualProgressState state)
-        {
-            _ = state;
-        }
-
-        public void Complete()
-        {
-        }
-    }
+    private readonly record struct QueuedPeakPoint(string SongName, PeakAnalysisPoint Point);
 }

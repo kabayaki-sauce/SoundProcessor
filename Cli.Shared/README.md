@@ -11,6 +11,9 @@
 - `stdout` の機械可読出力を維持するための `stderr` への進捗出力
 - interactive な `pwsh/cmd` では UTF-8 を適用し、`█/░` の進捗バー表示を維持
 
+`SoundAnalyzer.Cli` の詳細進捗（`--show-progress`）は `SoundAnalyzer.Cli` 側の専用表示実装を利用します。  
+`Cli.Shared` の 2 段表示は主に `AudioSplitter.Cli` で利用されます。
+
 ## 主な契約
 
 - `IProgressDisplay`

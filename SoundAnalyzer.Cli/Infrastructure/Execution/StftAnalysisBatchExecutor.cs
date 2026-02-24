@@ -1,14 +1,14 @@
-using System.Globalization;
+using System.Runtime.ExceptionServices;
+using System.Threading.Channels;
 using AudioProcessor.Application.Models;
 using AudioProcessor.Application.Ports;
 using AudioProcessor.Domain.Models;
-using Cli.Shared.Application.Models;
-using Cli.Shared.Application.Ports;
 using STFTAnalyzer.Core.Application.Models;
 using STFTAnalyzer.Core.Application.Ports;
 using STFTAnalyzer.Core.Application.UseCases;
 using STFTAnalyzer.Core.Domain.Models;
 using SoundAnalyzer.Cli.Infrastructure.FileSystem;
+using SoundAnalyzer.Cli.Infrastructure.Progress;
 using SoundAnalyzer.Cli.Infrastructure.Sqlite;
 using SoundAnalyzer.Cli.Presentation.Cli.Arguments;
 
@@ -30,20 +30,12 @@ internal sealed class StftAnalysisBatchExecutor
         this.audioProbeService = audioProbeService ?? throw new ArgumentNullException(nameof(audioProbeService));
     }
 
+#pragma warning disable CA1031
     public async Task<StftAnalysisBatchSummary> ExecuteAsync(
         CommandLineArguments arguments,
-        CancellationToken cancellationToken)
-    {
-        return await ExecuteAsync(arguments, SilentProgressDisplay.Instance, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<StftAnalysisBatchSummary> ExecuteAsync(
-        CommandLineArguments arguments,
-        IProgressDisplay progressDisplay,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(arguments);
-        ArgumentNullException.ThrowIfNull(progressDisplay);
 
         if (!Directory.Exists(arguments.InputDirectoryPath))
         {
@@ -54,14 +46,17 @@ internal sealed class StftAnalysisBatchExecutor
         string anchorColumnName = arguments.HopUnit == AnalysisLengthUnit.Sample ? "sample" : "ms";
 
         BatchExecutionSupport.EnsureDbDirectory(arguments.DbFilePath);
-
         ResolvedStftAudioFiles resolved = StftAudioFileResolver.Resolve(
             arguments.InputDirectoryPath,
             arguments.Recursive);
 
-        SqliteConflictMode conflictMode = BatchExecutionSupport.ResolveConflictMode(arguments);
+        using SoundAnalyzerProgressTracker progressTracker = SoundAnalyzerProgressTracker.Create(arguments.ShowProgress);
+        progressTracker.Configure(
+            resolved.Files.Select(file => file.Name).ToArray(),
+            arguments.StftFileThreads,
+            arguments.InsertQueueSize);
 
-        long writtenPointCount = 0;
+        SqliteConflictMode conflictMode = BatchExecutionSupport.ResolveConflictMode(arguments);
         using SqliteStftAnalysisStore store = new(
             arguments.DbFilePath,
             arguments.TableName,
@@ -72,86 +67,131 @@ internal sealed class StftAnalysisBatchExecutor
         store.Initialize();
 
         FfmpegToolPaths toolPaths = ffmpegLocator.Resolve(arguments.FfmpegPath);
-        long completedSongCount = 0;
-        long totalSongCount = resolved.Files.Count;
 
-        for (int index = 0; index < resolved.Files.Count; index++)
+        using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        CancellationToken executionToken = linkedCts.Token;
+
+        BoundedChannelOptions insertChannelOptions = new(arguments.InsertQueueSize)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.Wait,
+        };
 
-            StftAudioFile target = resolved.Files[index];
-            AudioStreamInfo streamInfo = await audioProbeService
-                .ProbeAsync(toolPaths, target.FilePath, cancellationToken)
-                .ConfigureAwait(false);
+        Channel<QueuedStftPoint> insertChannel = Channel.CreateBounded<QueuedStftPoint>(insertChannelOptions);
+        Exception? consumerException = null;
+        long insertedPointCount = 0;
 
-            int analysisSampleRate = arguments.TargetSamplingHz ?? streamInfo.SampleRate;
-            long windowSamples = ResolveSamples(arguments.WindowValue, arguments.WindowUnit, analysisSampleRate);
-            long hopSamples = ResolveSamples(arguments.HopValue, arguments.HopUnit, analysisSampleRate);
-
-            long anchorCount = BatchExecutionSupport.EstimateAnchorCountBySamples(streamInfo, analysisSampleRate, hopSamples);
-            long estimatedPointCount = checked(anchorCount * streamInfo.Channels);
-            long safeSongTotal = estimatedPointCount > 0 ? estimatedPointCount : 1;
-            long writtenForSong = 0;
-
-            ReportSongProgress(
-                progressDisplay,
-                target.Name,
-                completedSongCount,
-                totalSongCount,
-                writtenForSong,
-                safeSongTotal);
-
-            StftAnalysisRequest request = new(
-                target.FilePath,
-                target.Name,
-                windowSamples,
-                hopSamples,
-                analysisSampleRate,
-                arguments.HopUnit == AnalysisLengthUnit.Sample ? StftAnchorUnit.Sample : StftAnchorUnit.Millisecond,
-                arguments.WindowValue,
-                binCount,
-                arguments.MinLimitDb,
-                arguments.FfmpegPath);
-
-            ProgressReportingStftWriter reportingWriter = new(
-                store,
-                pointCount =>
+        Task consumerTask = Task.Run(
+            async () =>
+            {
+                try
                 {
-                    writtenForSong = checked(writtenForSong + pointCount);
-                    ReportSongProgress(
-                        progressDisplay,
-                        target.Name,
-                        completedSongCount,
-                        totalSongCount,
-                        writtenForSong,
-                        safeSongTotal);
-                });
+                    await foreach (QueuedStftPoint queuedPoint in insertChannel.Reader.ReadAllAsync(executionToken).ConfigureAwait(false))
+                    {
+                        store.Write(queuedPoint.Point);
+                        insertedPointCount++;
+                        progressTracker.IncrementInserted(queuedPoint.SongName);
+                    }
+                }
+                catch (OperationCanceledException) when (executionToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    consumerException = ex;
+                    await linkedCts.CancelAsync().ConfigureAwait(false);
+                }
+            },
+            CancellationToken.None);
 
-            StftAnalysisSummary summary = await stftAnalysisUseCase
-                .ExecuteAsync(request, reportingWriter, cancellationToken)
-                .ConfigureAwait(false);
+        QueuedStftWriter queuedWriter = new(
+            insertChannel.Writer,
+            progressTracker,
+            () => consumerException,
+            executionToken);
 
-            writtenPointCount = checked(writtenPointCount + summary.PointCount);
-            completedSongCount++;
-            ReportSongProgress(
-                progressDisplay,
-                target.Name,
-                completedSongCount,
-                totalSongCount,
-                safeSongTotal,
-                safeSongTotal);
+        Channel<StftAudioFile> songChannel = Channel.CreateUnbounded<StftAudioFile>(
+            new UnboundedChannelOptions
+            {
+                SingleWriter = true,
+                SingleReader = false,
+            });
+
+        for (int i = 0; i < resolved.Files.Count; i++)
+        {
+            if (!songChannel.Writer.TryWrite(resolved.Files[i]))
+            {
+                throw new InvalidOperationException("Failed to enqueue STFT song job.");
+            }
         }
 
-        if (resolved.Files.Count == 0)
+        songChannel.Writer.TryComplete();
+
+        Task[] workerTasks = new Task[arguments.StftFileThreads];
+        for (int workerId = 0; workerId < workerTasks.Length; workerId++)
         {
-            BatchExecutionSupport.ReportDualProgress(
-                progressDisplay,
-                "Songs 0/0",
-                1,
-                1,
-                "Current song",
-                1,
-                1);
+            int capturedWorkerId = workerId;
+            workerTasks[workerId] = Task.Run(
+                async () =>
+                {
+                    await foreach (StftAudioFile target in songChannel.Reader.ReadAllAsync(executionToken).ConfigureAwait(false))
+                    {
+                        progressTracker.SetWorkerSong(capturedWorkerId, target.Name);
+                        try
+                        {
+                            await ProcessFileAsync(
+                                    target,
+                                    arguments,
+                                    binCount,
+                                    toolPaths,
+                                    queuedWriter,
+                                    executionToken)
+                                .ConfigureAwait(false);
+                            progressTracker.MarkWorkerAnalyzeCompleted(capturedWorkerId);
+                        }
+                        finally
+                        {
+                            progressTracker.SetWorkerIdle(capturedWorkerId);
+                        }
+                    }
+                },
+                CancellationToken.None);
+        }
+
+        Exception? producerException = null;
+        try
+        {
+            await Task.WhenAll(workerTasks).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            producerException = ex;
+            await linkedCts.CancelAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            insertChannel.Writer.TryComplete(producerException);
+        }
+
+        try
+        {
+            await consumerTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (executionToken.IsCancellationRequested)
+        {
+            throw;
+        }
+
+        if (consumerException is not null)
+        {
+            throw new CliException(CliErrorCode.None, "Insert pipeline failed.", consumerException);
+        }
+
+        if (producerException is not null)
+        {
+            ExceptionDispatchInfo.Capture(producerException).Throw();
         }
 
         store.Complete();
@@ -159,9 +199,49 @@ internal sealed class StftAnalysisBatchExecutor
         return new StftAnalysisBatchSummary(
             resolved.DirectoryCount,
             resolved.Files.Count,
-            writtenPointCount,
+            insertedPointCount,
             arguments.TableName,
             binCount);
+    }
+#pragma warning restore CA1031
+
+    private async Task ProcessFileAsync(
+        StftAudioFile target,
+        CommandLineArguments arguments,
+        int binCount,
+        FfmpegToolPaths toolPaths,
+        IStftAnalysisPointWriter queuedWriter,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentNullException.ThrowIfNull(toolPaths);
+        ArgumentNullException.ThrowIfNull(queuedWriter);
+
+        AudioStreamInfo streamInfo = await audioProbeService
+            .ProbeAsync(toolPaths, target.FilePath, cancellationToken)
+            .ConfigureAwait(false);
+
+        int analysisSampleRate = arguments.TargetSamplingHz ?? streamInfo.SampleRate;
+        long windowSamples = ResolveSamples(arguments.WindowValue, arguments.WindowUnit, analysisSampleRate);
+        long hopSamples = ResolveSamples(arguments.HopValue, arguments.HopUnit, analysisSampleRate);
+
+        StftAnalysisRequest request = new(
+            target.FilePath,
+            target.Name,
+            windowSamples,
+            hopSamples,
+            analysisSampleRate,
+            arguments.HopUnit == AnalysisLengthUnit.Sample ? StftAnchorUnit.Sample : StftAnchorUnit.Millisecond,
+            arguments.WindowValue,
+            binCount,
+            arguments.MinLimitDb,
+            arguments.FfmpegPath,
+            arguments.StftProcThreads);
+
+        _ = await stftAnalysisUseCase
+            .ExecuteAsync(request, queuedWriter, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private static long ResolveSamples(long value, AnalysisLengthUnit unit, int sampleRate)
@@ -174,86 +254,39 @@ internal sealed class StftAnalysisBatchExecutor
             : BatchExecutionSupport.ConvertDurationMsToSamples(value, sampleRate);
     }
 
-    private static void ReportSongProgress(
-        IProgressDisplay progressDisplay,
-        string songName,
-        long completedSongCount,
-        long totalSongCount,
-        long songWrittenPoints,
-        long songTotalPoints)
+    private sealed class QueuedStftWriter : IStftAnalysisPointWriter
     {
-        ArgumentNullException.ThrowIfNull(progressDisplay);
-        ArgumentException.ThrowIfNullOrWhiteSpace(songName);
-        ArgumentOutOfRangeException.ThrowIfNegative(completedSongCount);
-        ArgumentOutOfRangeException.ThrowIfNegative(totalSongCount);
-        ArgumentOutOfRangeException.ThrowIfNegative(songWrittenPoints);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(songTotalPoints);
+        private readonly ChannelWriter<QueuedStftPoint> writer;
+        private readonly SoundAnalyzerProgressTracker progressTracker;
+        private readonly CancellationToken cancellationToken;
+        private readonly Func<Exception?> consumerExceptionProvider;
 
-        long safeTopTotal = totalSongCount > 0 ? totalSongCount : 1;
-        const long topScale = 1000;
-        long topTotalScaled = checked(safeTopTotal * topScale);
-        long topProcessedScaled = totalSongCount > 0
-            ? checked(completedSongCount * topScale)
-            : topScale;
-
-        double songRatio = BatchExecutionSupport.ToRatio(songWrittenPoints, songTotalPoints);
-        if (totalSongCount > 0 && completedSongCount < safeTopTotal)
+        public QueuedStftWriter(
+            ChannelWriter<QueuedStftPoint> writer,
+            SoundAnalyzerProgressTracker progressTracker,
+            Func<Exception?> consumerExceptionProvider,
+            CancellationToken cancellationToken)
         {
-            topProcessedScaled = Math.Min(
-                topTotalScaled,
-                checked(topProcessedScaled + (long)Math.Round(songRatio * topScale, MidpointRounding.AwayFromZero)));
-        }
-
-        string topLabel = string.Create(
-            CultureInfo.InvariantCulture,
-            $"Songs {Math.Min(completedSongCount, safeTopTotal)}/{safeTopTotal} [{songName}]");
-        string bottomLabel = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{songName} points {Math.Min(songWrittenPoints, songTotalPoints)}/{songTotalPoints}");
-
-        BatchExecutionSupport.ReportDualProgress(
-            progressDisplay,
-            topLabel,
-            topProcessedScaled,
-            topTotalScaled,
-            bottomLabel,
-            songWrittenPoints,
-            songTotalPoints);
-    }
-
-    private sealed class ProgressReportingStftWriter : IStftAnalysisPointWriter
-    {
-        private readonly IStftAnalysisPointWriter inner;
-        private readonly Action<int> onWrite;
-
-        public ProgressReportingStftWriter(IStftAnalysisPointWriter inner, Action<int> onWrite)
-        {
-            this.inner = inner ?? throw new ArgumentNullException(nameof(inner));
-            this.onWrite = onWrite ?? throw new ArgumentNullException(nameof(onWrite));
+            this.writer = writer ?? throw new ArgumentNullException(nameof(writer));
+            this.progressTracker = progressTracker ?? throw new ArgumentNullException(nameof(progressTracker));
+            this.cancellationToken = cancellationToken;
+            this.consumerExceptionProvider = consumerExceptionProvider ?? throw new ArgumentNullException(nameof(consumerExceptionProvider));
         }
 
         public void Write(StftAnalysisPoint point)
         {
-            inner.Write(point);
-            onWrite(1);
+            ArgumentNullException.ThrowIfNull(point);
+
+            Exception? consumerException = consumerExceptionProvider();
+            if (consumerException is not null)
+            {
+                throw new CliException(CliErrorCode.None, "Insert pipeline failed.", consumerException);
+            }
+
+            writer.WriteAsync(new QueuedStftPoint(point.Name, point), cancellationToken).AsTask().GetAwaiter().GetResult();
+            progressTracker.IncrementEnqueued(point.Name);
         }
     }
 
-    private sealed class SilentProgressDisplay : IProgressDisplay
-    {
-        public static SilentProgressDisplay Instance { get; } = new();
-
-        private SilentProgressDisplay()
-        {
-        }
-
-        public void Report(DualProgressState state)
-        {
-            _ = state;
-        }
-
-        public void Complete()
-        {
-        }
-    }
+    private readonly record struct QueuedStftPoint(string SongName, StftAnalysisPoint Point);
 }

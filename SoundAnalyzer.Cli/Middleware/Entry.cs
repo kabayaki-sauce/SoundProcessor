@@ -1,6 +1,4 @@
 using System.Text.Json;
-using Cli.Shared.Application.Ports;
-using Cli.Shared.Extensions;
 using AudioProcessor.Application.Errors;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +35,11 @@ internal static class Entry
             return 1;
         }
 
+        if (parseResult.Warnings.Count > 0)
+        {
+            WriteWarnings(parseResult.Warnings);
+        }
+
         using CancellationTokenSource cancellationTokenSource = new();
         ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
         {
@@ -49,10 +52,7 @@ internal static class Entry
         try
         {
             CommandLineArguments arguments = parseResult.Arguments;
-            IProgressDisplayFactory progressDisplayFactory = host.Services.GetRequiredService<IProgressDisplayFactory>();
-            IProgressDisplay progressDisplay = progressDisplayFactory.Create(arguments.Progress);
-            object summary = Execute(arguments, host.Services, progressDisplay, cancellationTokenSource.Token);
-            progressDisplay.Complete();
+            object summary = Execute(arguments, host.Services, cancellationTokenSource.Token);
 
             string serialized = JsonSerializer.Serialize(summary);
             System.Console.Out.WriteLine(serialized);
@@ -97,21 +97,19 @@ internal static class Entry
     private static object Execute(
         CommandLineArguments arguments,
         IServiceProvider services,
-        IProgressDisplay progressDisplay,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(arguments);
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(progressDisplay);
 
         return arguments.Mode switch
         {
             ConsoleTexts.PeakAnalysisMode => services.GetRequiredService<PeakAnalysisBatchExecutor>()
-                .ExecuteAsync(arguments, progressDisplay, cancellationToken)
+                .ExecuteAsync(arguments, cancellationToken)
                 .GetAwaiter()
                 .GetResult(),
             ConsoleTexts.StftAnalysisMode => services.GetRequiredService<StftAnalysisBatchExecutor>()
-                .ExecuteAsync(arguments, progressDisplay, cancellationToken)
+                .ExecuteAsync(arguments, cancellationToken)
                 .GetAwaiter()
                 .GetResult(),
             _ => throw new CliException(CliErrorCode.UnsupportedMode, arguments.Mode),
@@ -122,7 +120,6 @@ internal static class Entry
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
 
-        builder.Services.AddCliShared();
         builder.Services.AddPeakAnalyzerCore();
         builder.Services.AddStftAnalyzerCore();
         builder.Services.AddSingleton<PeakAnalysisBatchExecutor>();
@@ -139,6 +136,13 @@ internal static class Entry
         System.Console.Error.WriteLine(serialized);
     }
 
+    private static void WriteWarnings(IEnumerable<string> warnings)
+    {
+        ArgumentNullException.ThrowIfNull(warnings);
+        string serialized = JsonSerializer.Serialize(new WarningPayload(warnings.ToArray()));
+        System.Console.Error.WriteLine(serialized);
+    }
+
     private sealed class ErrorPayload
     {
         public ErrorPayload(IReadOnlyList<string> errors)
@@ -148,5 +152,16 @@ internal static class Entry
         }
 
         public IReadOnlyList<string> Errors { get; }
+    }
+
+    private sealed class WarningPayload
+    {
+        public WarningPayload(IReadOnlyList<string> warnings)
+        {
+            ArgumentNullException.ThrowIfNull(warnings);
+            Warnings = warnings;
+        }
+
+        public IReadOnlyList<string> Warnings { get; }
     }
 }

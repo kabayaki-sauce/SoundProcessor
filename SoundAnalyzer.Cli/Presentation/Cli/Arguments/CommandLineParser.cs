@@ -6,6 +6,10 @@ namespace SoundAnalyzer.Cli.Presentation.Cli.Arguments;
 
 internal static partial class CommandLineParser
 {
+    private const int DefaultProcessingThreads = 1;
+    private const int DefaultFileThreads = 1;
+    private const int DefaultInsertQueueSize = 1024;
+
     public static CommandLineParseResult Parse(IReadOnlyList<string> args)
     {
         ArgumentNullException.ThrowIfNull(args);
@@ -26,13 +30,19 @@ internal static partial class CommandLineParser
         string? minLimitDbText = null;
         string? binCountText = null;
         string? ffmpegPath = null;
+        string? stftProcThreadsText = null;
+        string? peakProcThreadsText = null;
+        string? stftFileThreadsText = null;
+        string? peakFileThreadsText = null;
+        string? insertQueueSizeText = null;
         bool upsert = false;
         bool skipDuplicate = false;
         bool deleteCurrent = false;
         bool recursive = false;
-        bool progress = false;
+        bool showProgress = false;
 
         List<string> errors = new();
+        List<string> warnings = new();
 
         for (int i = 0; i < args.Count; i++)
         {
@@ -66,9 +76,9 @@ internal static partial class CommandLineParser
                 continue;
             }
 
-            if (MatchesOption(token, ConsoleTexts.ProgressOption))
+            if (MatchesOption(token, ConsoleTexts.ShowProgressOption))
             {
-                progress = true;
+                showProgress = true;
                 continue;
             }
 
@@ -182,6 +192,56 @@ internal static partial class CommandLineParser
                 continue;
             }
 
+            if (MatchesOption(token, ConsoleTexts.StftProcThreadsOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    stftProcThreadsText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.PeakProcThreadsOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    peakProcThreadsText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.StftFileThreadsOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    stftFileThreadsText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.PeakFileThreadsOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    peakFileThreadsText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.InsertQueueSizeOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    insertQueueSizeText = value;
+                }
+
+                continue;
+            }
+
             errors.Add(ConsoleTexts.WithValue(ConsoleTexts.UnknownOptionPrefix, token));
         }
 
@@ -272,6 +332,71 @@ internal static partial class CommandLineParser
             }
         }
 
+        int stftProcThreads = DefaultProcessingThreads;
+        if (!string.IsNullOrWhiteSpace(stftProcThreadsText))
+        {
+            if (!TryParsePositiveInt(stftProcThreadsText!, out int parsedStftProcThreads))
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidIntegerPrefix, stftProcThreadsText!));
+            }
+            else
+            {
+                stftProcThreads = parsedStftProcThreads;
+            }
+        }
+
+        int peakProcThreads = DefaultProcessingThreads;
+        if (!string.IsNullOrWhiteSpace(peakProcThreadsText))
+        {
+            if (!TryParsePositiveInt(peakProcThreadsText!, out int parsedPeakProcThreads))
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidIntegerPrefix, peakProcThreadsText!));
+            }
+            else
+            {
+                peakProcThreads = parsedPeakProcThreads;
+            }
+        }
+
+        int stftFileThreads = DefaultFileThreads;
+        if (!string.IsNullOrWhiteSpace(stftFileThreadsText))
+        {
+            if (!TryParsePositiveInt(stftFileThreadsText!, out int parsedStftFileThreads))
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidIntegerPrefix, stftFileThreadsText!));
+            }
+            else
+            {
+                stftFileThreads = parsedStftFileThreads;
+            }
+        }
+
+        int peakFileThreads = DefaultFileThreads;
+        if (!string.IsNullOrWhiteSpace(peakFileThreadsText))
+        {
+            if (!TryParsePositiveInt(peakFileThreadsText!, out int parsedPeakFileThreads))
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidIntegerPrefix, peakFileThreadsText!));
+            }
+            else
+            {
+                peakFileThreads = parsedPeakFileThreads;
+            }
+        }
+
+        int insertQueueSize = DefaultInsertQueueSize;
+        if (!string.IsNullOrWhiteSpace(insertQueueSizeText))
+        {
+            if (!TryParsePositiveInt(insertQueueSizeText!, out int parsedInsertQueueSize))
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidIntegerPrefix, insertQueueSizeText!));
+            }
+            else
+            {
+                insertQueueSize = parsedInsertQueueSize;
+            }
+        }
+
         bool usesSampleUnit = windowLength.IsSample || hopLength.IsSample;
 
         if (isStftMode)
@@ -281,32 +406,46 @@ internal static partial class CommandLineParser
                 errors.Add(ConsoleTexts.WithValue(ConsoleTexts.MissingOptionPrefix, ConsoleTexts.BinCountOption));
             }
 
-            if (stemsText is not null)
+            if (stems is not null)
             {
-                errors.Add(ConsoleTexts.StemsNotSupportedForStftText);
+                AddModeWarning(warnings, ConsoleTexts.StemsOption);
+                stems = null;
             }
 
             if (usesSampleUnit && !targetSamplingHz.HasValue)
             {
                 errors.Add(ConsoleTexts.WithValue(ConsoleTexts.MissingOptionPrefix, ConsoleTexts.TargetSamplingOption));
             }
+
+            if (!string.IsNullOrWhiteSpace(peakProcThreadsText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.PeakProcThreadsOption);
+            }
+
+            if (!string.IsNullOrWhiteSpace(peakFileThreadsText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.PeakFileThreadsOption);
+            }
         }
 
         if (isPeakMode)
         {
-            if (binCount is not null)
+            if (!string.IsNullOrWhiteSpace(binCountText))
             {
-                errors.Add(ConsoleTexts.BinCountOnlyForStftText);
+                AddModeWarning(warnings, ConsoleTexts.BinCountOption);
+                binCount = null;
             }
 
             if (deleteCurrent)
             {
-                errors.Add(ConsoleTexts.DeleteCurrentOnlyForStftText);
+                AddModeWarning(warnings, ConsoleTexts.DeleteCurrentOption);
+                deleteCurrent = false;
             }
 
             if (recursive)
             {
-                errors.Add(ConsoleTexts.RecursiveOnlyForStftText);
+                AddModeWarning(warnings, ConsoleTexts.RecursiveOption);
+                recursive = false;
             }
 
             if (usesSampleUnit)
@@ -316,7 +455,18 @@ internal static partial class CommandLineParser
 
             if (targetSamplingText is not null)
             {
-                errors.Add(ConsoleTexts.TargetSamplingOnlyForStftText);
+                AddModeWarning(warnings, ConsoleTexts.TargetSamplingOption);
+                targetSamplingHz = null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(stftProcThreadsText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.StftProcThreadsOption);
+            }
+
+            if (!string.IsNullOrWhiteSpace(stftFileThreadsText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.StftFileThreadsOption);
             }
         }
 
@@ -370,8 +520,13 @@ internal static partial class CommandLineParser
             deleteCurrent,
             recursive,
             ffmpegPath,
-            progress);
-        return CommandLineParseResult.Success(arguments);
+            stftProcThreads,
+            peakProcThreads,
+            stftFileThreads,
+            peakFileThreads,
+            insertQueueSize,
+            showProgress);
+        return CommandLineParseResult.Success(arguments, warnings);
     }
 
     internal static bool IsValidTableName(string tableName)
@@ -554,6 +709,13 @@ internal static partial class CommandLineParser
         value = args[valueIndex];
         index = valueIndex;
         return true;
+    }
+
+    private static void AddModeWarning(List<string> warnings, string optionName)
+    {
+        ArgumentNullException.ThrowIfNull(warnings);
+        ArgumentException.ThrowIfNullOrWhiteSpace(optionName);
+        warnings.Add(ConsoleTexts.WithValue(ConsoleTexts.IncompatibleOptionIgnoredPrefix, optionName));
     }
 
     [GeneratedRegex(

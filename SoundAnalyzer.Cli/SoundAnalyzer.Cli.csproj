@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\Cli.Shared\Cli.Shared.csproj" />
     <ProjectReference Include="..\PeakAnalyzer.Core\PeakAnalyzer.Core.csproj" />
     <ProjectReference Include="..\STFTAnalyzer.Core\STFTAnalyzer.Core.csproj" />
   </ItemGroup>

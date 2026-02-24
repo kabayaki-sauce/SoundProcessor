@@ -12,7 +12,8 @@ public sealed class StftAnalysisRequest
         long windowPersistedValue,
         int binCount,
         double minLimitDb,
-        string? ffmpegPath)
+        string? ffmpegPath,
+        int processingThreads = 1)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(inputFilePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -21,6 +22,7 @@ public sealed class StftAnalysisRequest
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(analysisSampleRate);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(windowPersistedValue);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(binCount);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(processingThreads);
 
         if (double.IsNaN(minLimitDb) || double.IsInfinity(minLimitDb))
         {
@@ -37,6 +39,7 @@ public sealed class StftAnalysisRequest
         BinCount = binCount;
         MinLimitDb = minLimitDb;
         FfmpegPath = ffmpegPath;
+        ProcessingThreads = processingThreads;
     }
 
     public string InputFilePath { get; }
@@ -58,4 +61,6 @@ public sealed class StftAnalysisRequest
     public double MinLimitDb { get; }
 
     public string? FfmpegPath { get; }
+
+    public int ProcessingThreads { get; }
 }

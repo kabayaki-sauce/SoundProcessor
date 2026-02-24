@@ -105,7 +105,8 @@ public sealed class StftAnalysisUseCaseTests
                 windowPersistedValue: 20,
                 binCount: 4,
                 minLimitDb: -120,
-                ffmpegPath: null);
+                ffmpegPath: null,
+                processingThreads: 2);
 
             StftAnalysisSummary summary = await useCase.ExecuteAsync(request, writer, CancellationToken.None);
 
@@ -114,6 +115,42 @@ public sealed class StftAnalysisUseCaseTests
             Assert.Contains(writer.Points, point => point.Channel == 0);
             Assert.Contains(writer.Points, point => point.Channel == 1);
             Assert.All(writer.Points, point => Assert.Equal(4, point.Bins.Count));
+        }
+        finally
+        {
+            File.Delete(inputPath);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldSupportWindowPipelineMode_WhenProcessingThreadsExceedChannels()
+    {
+        string inputPath = CreateTempInputFile();
+        try
+        {
+            float[][] frames = CreateFrames(channels: 1, count: 120, value: 0.3F);
+            CapturingPcmFrameReader pcmFrameReader = new(frames);
+            StftAnalysisUseCase useCase = BuildUseCase(sampleRate: 1000, channels: 1, pcmFrameReader);
+            CollectingWriter writer = new();
+
+            StftAnalysisRequest request = new(
+                inputPath,
+                "song",
+                windowSamples: 30,
+                hopSamples: 10,
+                analysisSampleRate: 1000,
+                anchorUnit: StftAnchorUnit.Sample,
+                windowPersistedValue: 30,
+                binCount: 8,
+                minLimitDb: -120,
+                ffmpegPath: null,
+                processingThreads: 4);
+
+            StftAnalysisSummary summary = await useCase.ExecuteAsync(request, writer, CancellationToken.None);
+
+            Assert.Equal(12, summary.PointCount);
+            Assert.Equal(12, writer.Points.Count);
+            Assert.All(writer.Points, point => Assert.Equal(8, point.Bins.Count));
         }
         finally
         {
@@ -321,12 +358,17 @@ public sealed class StftAnalysisUseCaseTests
 
     private sealed class CollectingWriter : IStftAnalysisPointWriter
     {
+        private readonly object sync = new();
+
         public List<StftAnalysisPoint> Points { get; } = new();
 
         public void Write(StftAnalysisPoint point)
         {
             ArgumentNullException.ThrowIfNull(point);
-            Points.Add(point);
+            lock (sync)
+            {
+                Points.Add(point);
+            }
         }
     }
 }
