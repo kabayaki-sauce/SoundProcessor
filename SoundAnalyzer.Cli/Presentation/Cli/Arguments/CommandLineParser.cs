@@ -17,6 +17,7 @@ internal static partial class CommandLineParser
 
         string? windowSizeText = null;
         string? hopText = null;
+        string? targetSamplingText = null;
         string? inputDirPath = null;
         string? dbFilePath = null;
         string? stemsText = null;
@@ -86,6 +87,16 @@ internal static partial class CommandLineParser
                 if (TryReadOptionValue(args, ref i, token, errors, out string value))
                 {
                     hopText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.TargetSamplingOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    targetSamplingText = value;
                 }
 
                 continue;
@@ -204,25 +215,37 @@ internal static partial class CommandLineParser
             return CommandLineParseResult.Failure(errors);
         }
 
-        string windowValue = windowSizeText!;
-        string hopValue = hopText!;
         string modeValue = modeText!;
-
-        if (!TryParseIntegralMilliseconds(windowValue, out long windowMs))
-        {
-            errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidTimePrefix, windowValue));
-        }
-
-        if (!TryParseIntegralMilliseconds(hopValue, out long hopMs))
-        {
-            errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidTimePrefix, hopValue));
-        }
-
         bool isPeakMode = string.Equals(modeValue, ConsoleTexts.PeakAnalysisMode, StringComparison.OrdinalIgnoreCase);
-        bool isSfftMode = string.Equals(modeValue, ConsoleTexts.SfftAnalysisMode, StringComparison.OrdinalIgnoreCase);
-        if (!isPeakMode && !isSfftMode)
+        bool isStftMode = string.Equals(modeValue, ConsoleTexts.StftAnalysisMode, StringComparison.OrdinalIgnoreCase);
+        if (!isPeakMode && !isStftMode)
         {
             errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidModePrefix, modeValue));
+        }
+
+        AnalysisLengthArgument windowLength = default;
+        if (!TryParseLength(windowSizeText!, out windowLength))
+        {
+            errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidTimePrefix, windowSizeText!));
+        }
+
+        AnalysisLengthArgument hopLength = default;
+        if (!TryParseLength(hopText!, out hopLength))
+        {
+            errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidTimePrefix, hopText!));
+        }
+
+        int? targetSamplingHz = null;
+        if (!string.IsNullOrWhiteSpace(targetSamplingText))
+        {
+            if (!TryParseSamplingHz(targetSamplingText!, out int parsedSamplingHz))
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidSamplingPrefix, targetSamplingText!));
+            }
+            else
+            {
+                targetSamplingHz = parsedSamplingHz;
+            }
         }
 
         IReadOnlyList<string>? stems = null;
@@ -251,7 +274,9 @@ internal static partial class CommandLineParser
             }
         }
 
-        if (isSfftMode)
+        bool usesSampleUnit = windowLength.IsSample || hopLength.IsSample;
+
+        if (isStftMode)
         {
             if (binCount is null)
             {
@@ -260,7 +285,12 @@ internal static partial class CommandLineParser
 
             if (stemsText is not null)
             {
-                errors.Add(ConsoleTexts.StemsNotSupportedForSfftText);
+                errors.Add(ConsoleTexts.StemsNotSupportedForStftText);
+            }
+
+            if (usesSampleUnit && !targetSamplingHz.HasValue)
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.MissingOptionPrefix, ConsoleTexts.TargetSamplingOption));
             }
         }
 
@@ -268,21 +298,31 @@ internal static partial class CommandLineParser
         {
             if (binCount is not null)
             {
-                errors.Add(ConsoleTexts.BinCountOnlyForSfftText);
+                errors.Add(ConsoleTexts.BinCountOnlyForStftText);
             }
 
             if (deleteCurrent)
             {
-                errors.Add(ConsoleTexts.DeleteCurrentOnlyForSfftText);
+                errors.Add(ConsoleTexts.DeleteCurrentOnlyForStftText);
             }
 
             if (recursive)
             {
-                errors.Add(ConsoleTexts.RecursiveOnlyForSfftText);
+                errors.Add(ConsoleTexts.RecursiveOnlyForStftText);
+            }
+
+            if (usesSampleUnit)
+            {
+                errors.Add(ConsoleTexts.SampleUnitOnlyForStftText);
+            }
+
+            if (targetSamplingText is not null)
+            {
+                errors.Add(ConsoleTexts.TargetSamplingOnlyForStftText);
             }
         }
 
-        string defaultTableName = isSfftMode ? ConsoleTexts.DefaultSfftTableName : ConsoleTexts.DefaultPeakTableName;
+        string defaultTableName = isStftMode ? ConsoleTexts.DefaultStftTableName : ConsoleTexts.DefaultPeakTableName;
         string tableName = string.IsNullOrWhiteSpace(tableNameOverride)
             ? defaultTableName
             : tableNameOverride!.Trim();
@@ -313,10 +353,13 @@ internal static partial class CommandLineParser
             return CommandLineParseResult.Failure(errors);
         }
 
-        string mode = isSfftMode ? ConsoleTexts.SfftAnalysisMode : ConsoleTexts.PeakAnalysisMode;
+        string mode = isStftMode ? ConsoleTexts.StftAnalysisMode : ConsoleTexts.PeakAnalysisMode;
         CommandLineArguments arguments = new(
-            windowMs,
-            hopMs,
+            windowLength.Value,
+            windowLength.Unit,
+            hopLength.Value,
+            hopLength.Unit,
+            targetSamplingHz,
             inputDirPath!,
             dbFilePath!,
             stems,
@@ -341,61 +384,6 @@ internal static partial class CommandLineParser
         }
 
         return TableNamePattern().IsMatch(tableName.Trim());
-    }
-
-    internal static bool TryParseIntegralMilliseconds(string text, out long milliseconds)
-    {
-        milliseconds = default;
-
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return false;
-        }
-
-        Match match = TimePattern().Match(text.Trim());
-        if (!match.Success)
-        {
-            return false;
-        }
-
-        if (!double.TryParse(
-                match.Groups["value"].Value,
-                NumberStyles.Float,
-                CultureInfo.InvariantCulture,
-                out double scalar)
-            || double.IsNaN(scalar)
-            || double.IsInfinity(scalar))
-        {
-            return false;
-        }
-
-        string unit = match.Groups["unit"].Value;
-        double totalMilliseconds = unit.ToLowerInvariant() switch
-        {
-            "ms" => scalar,
-            "s" => scalar * 1000.0,
-            "m" => scalar * 60_000.0,
-            _ => double.NaN,
-        };
-
-        if (double.IsNaN(totalMilliseconds) || double.IsInfinity(totalMilliseconds) || totalMilliseconds <= 0)
-        {
-            return false;
-        }
-
-        double rounded = Math.Round(totalMilliseconds, MidpointRounding.AwayFromZero);
-        if (Math.Abs(totalMilliseconds - rounded) > 1e-9)
-        {
-            return false;
-        }
-
-        if (rounded > long.MaxValue)
-        {
-            return false;
-        }
-
-        milliseconds = checked((long)rounded);
-        return true;
     }
 
     internal static bool TryParsePositiveInt(string text, out int value)
@@ -435,6 +423,105 @@ internal static partial class CommandLineParser
         return stems.Count > 0;
     }
 
+    private static bool TryParseLength(string text, out AnalysisLengthArgument length)
+    {
+        length = default;
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        Match match = LengthPattern().Match(text.Trim());
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        if (!double.TryParse(
+                match.Groups["value"].Value,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out double scalar)
+            || double.IsNaN(scalar)
+            || double.IsInfinity(scalar))
+        {
+            return false;
+        }
+
+        string unit = match.Groups["unit"].Value;
+        if (unit.Equals("sample", StringComparison.OrdinalIgnoreCase)
+            || unit.Equals("samples", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!TryParseIntegralPositiveLong(scalar, out long sampleCount))
+            {
+                return false;
+            }
+
+            length = new AnalysisLengthArgument(sampleCount, AnalysisLengthUnit.Sample);
+            return true;
+        }
+
+        double totalMilliseconds = unit.ToLowerInvariant() switch
+        {
+            "ms" => scalar,
+            "s" => scalar * 1000.0,
+            "m" => scalar * 60_000.0,
+            _ => double.NaN,
+        };
+
+        if (double.IsNaN(totalMilliseconds) || double.IsInfinity(totalMilliseconds))
+        {
+            return false;
+        }
+
+        if (!TryParseIntegralPositiveLong(totalMilliseconds, out long milliseconds))
+        {
+            return false;
+        }
+
+        length = new AnalysisLengthArgument(milliseconds, AnalysisLengthUnit.Millisecond);
+        return true;
+    }
+
+    private static bool TryParseSamplingHz(string text, out int samplingHz)
+    {
+        samplingHz = default;
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        Match match = SamplingPattern().Match(text.Trim());
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        return int.TryParse(match.Groups["value"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out samplingHz)
+            && samplingHz > 0;
+    }
+
+    private static bool TryParseIntegralPositiveLong(double value, out long integral)
+    {
+        integral = default;
+
+        if (double.IsNaN(value) || double.IsInfinity(value) || value <= 0)
+        {
+            return false;
+        }
+
+        double rounded = Math.Round(value, MidpointRounding.AwayFromZero);
+        if (Math.Abs(value - rounded) > 1e-9 || rounded > long.MaxValue)
+        {
+            return false;
+        }
+
+        integral = checked((long)rounded);
+        return true;
+    }
+
     private static bool MatchesOption(string token, string optionName)
     {
         return string.Equals(token, optionName, StringComparison.OrdinalIgnoreCase);
@@ -472,9 +559,14 @@ internal static partial class CommandLineParser
     }
 
     [GeneratedRegex(
-        @"^(?<value>[+-]?\d+(?:\.\d+)?)(?<unit>ms|s|m)$",
+        @"^(?<value>[+-]?\d+(?:\.\d+)?)(?<unit>ms|s|m|sample|samples)$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
-    private static partial Regex TimePattern();
+    private static partial Regex LengthPattern();
+
+    [GeneratedRegex(
+        @"^(?<value>[1-9]\d*)hz$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
+    private static partial Regex SamplingPattern();
 
     [GeneratedRegex(
         @"^[A-Za-z_][A-Za-z0-9_-]*$",

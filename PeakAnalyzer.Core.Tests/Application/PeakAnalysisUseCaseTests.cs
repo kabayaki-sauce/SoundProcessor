@@ -259,7 +259,8 @@ public sealed class PeakAnalysisUseCaseTests
             string inputFilePath,
             int channels,
             IAudioPcmFrameSink frameSink,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            int? targetSampleRateHz = null)
         {
             ArgumentNullException.ThrowIfNull(frameSink);
 
@@ -286,3 +287,4 @@ public sealed class PeakAnalysisUseCaseTests
         }
     }
 }
+
