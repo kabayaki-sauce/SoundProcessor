@@ -82,6 +82,11 @@ SoundAnalyzer.Cli.exe --window-size <time> --hop <time> --input-dir <path> --db-
 
 `--delete-current` 未指定時は既存テーブルの `binNNN` 列数と `--bin-count` が一致する場合のみ続行します。
 
+## SQLite ジャーナル運用
+
+- 初期化時に `PRAGMA journal_mode=WAL` を試行します
+- 環境やファイルシステム制約で WAL へ切り替えできない場合は、既存ジャーナルモードで継続します
+
 ## 実行例
 
 ### peak-analysis

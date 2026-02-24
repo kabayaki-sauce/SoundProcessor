@@ -31,6 +31,9 @@ AudioProcessor は、オーディオ解析・変換ツール群を提供する .
 - `SoundAnalyzer.Cli -> PeakAnalyzer.Core -> AudioProcessor`
 - `SoundAnalyzer.Cli -> SFFTAnalyzer.Core -> AudioProcessor`
 
+`SoundAnalyzer.Cli` の SQLite 保存は、初期化時に `journal_mode=WAL` を試行します。  
+WAL 非対応環境では既存ジャーナルモードへ自動フォールバックします。
+
 ## 前提環境
 
 - `.NET SDK 10.x`
