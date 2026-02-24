@@ -11,8 +11,6 @@ namespace SoundAnalyzer.Cli.Infrastructure.Postgres;
 internal sealed class PostgresStftAnalysisStore : IStftAnalysisStore
 {
     private const int InsertColumnCount = 8;
-    private const int DefaultBatchRowCount = 512;
-    private const int MaxParameterCount = 65_535;
 
     private readonly PostgresConnectionOptions connectionOptions;
     private readonly PostgresSshOptions? sshOptions;
@@ -28,7 +26,7 @@ internal sealed class PostgresStftAnalysisStore : IStftAnalysisStore
     private bool completed;
     private bool deferIndexCreation;
     private bool indexesCreated;
-    private int effectiveBatchRowCount;
+    private readonly int effectiveBatchRowCount;
 
     public PostgresStftAnalysisStore(
         PostgresConnectionOptions connectionOptions,
@@ -37,7 +35,8 @@ internal sealed class PostgresStftAnalysisStore : IStftAnalysisStore
         string anchorColumnName,
         SqliteConflictMode conflictMode,
         int binCount,
-        bool deleteCurrent)
+        bool deleteCurrent,
+        int batchRowCount)
     {
         this.connectionOptions = connectionOptions ?? throw new ArgumentNullException(nameof(connectionOptions));
         this.sshOptions = sshOptions;
@@ -57,6 +56,7 @@ internal sealed class PostgresStftAnalysisStore : IStftAnalysisStore
         this.conflictMode = conflictMode;
         this.binCount = binCount;
         this.deleteCurrent = deleteCurrent;
+        effectiveBatchRowCount = PostgresBatchSizeCalculator.ResolveEffectiveBatchRowCount(batchRowCount, InsertColumnCount);
     }
 
     public void Initialize()
@@ -69,7 +69,6 @@ internal sealed class PostgresStftAnalysisStore : IStftAnalysisStore
         session = PostgresConnectionFactory.OpenSession(connectionOptions, sshOptions);
         connection = session.Connection;
         transaction = connection.BeginTransaction();
-        effectiveBatchRowCount = ResolveEffectiveBatchRowCount(DefaultBatchRowCount, InsertColumnCount);
 
         bool tableExists = TableExists(connection, transaction, tableName);
         if (deleteCurrent)
@@ -190,15 +189,6 @@ internal sealed class PostgresStftAnalysisStore : IStftAnalysisStore
             transaction?.Dispose();
             session?.Dispose();
         }
-    }
-
-    private static int ResolveEffectiveBatchRowCount(int requestedBatchRowCount, int columnsPerRow)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(requestedBatchRowCount);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(columnsPerRow);
-
-        int maxRows = Math.Max(1, MaxParameterCount / columnsPerRow);
-        return Math.Min(requestedBatchRowCount, maxRows);
     }
 
     private static bool TableExists(NpgsqlConnection connection, NpgsqlTransaction transaction, string tableName)

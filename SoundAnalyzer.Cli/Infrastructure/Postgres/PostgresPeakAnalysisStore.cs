@@ -9,11 +9,13 @@ namespace SoundAnalyzer.Cli.Infrastructure.Postgres;
 #pragma warning disable CA2100
 internal sealed class PostgresPeakAnalysisStore : IPeakAnalysisStore
 {
-    private const int DefaultBatchRowCount = 512;
+    private const int InsertColumnCount = 7;
+
     private readonly PostgresConnectionOptions connectionOptions;
     private readonly PostgresSshOptions? sshOptions;
     private readonly string tableName;
     private readonly SqliteConflictMode conflictMode;
+    private readonly int effectiveBatchRowCount;
     private readonly List<PeakInsertRow> pendingRows = new();
 
     private PostgresSession? session;
@@ -27,13 +29,15 @@ internal sealed class PostgresPeakAnalysisStore : IPeakAnalysisStore
         PostgresConnectionOptions connectionOptions,
         PostgresSshOptions? sshOptions,
         string tableName,
-        SqliteConflictMode conflictMode)
+        SqliteConflictMode conflictMode,
+        int batchRowCount)
     {
         this.connectionOptions = connectionOptions ?? throw new ArgumentNullException(nameof(connectionOptions));
         this.sshOptions = sshOptions;
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         this.tableName = tableName;
         this.conflictMode = conflictMode;
+        effectiveBatchRowCount = PostgresBatchSizeCalculator.ResolveEffectiveBatchRowCount(batchRowCount, InsertColumnCount);
     }
 
     public void Initialize()
@@ -73,7 +77,7 @@ internal sealed class PostgresPeakAnalysisStore : IPeakAnalysisStore
             nowMs,
             nowMs));
 
-        if (pendingRows.Count >= DefaultBatchRowCount)
+        if (pendingRows.Count >= effectiveBatchRowCount)
         {
             FlushPendingRows();
         }

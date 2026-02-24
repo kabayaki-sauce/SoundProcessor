@@ -1,0 +1,64 @@
+Usage:
+  SoundAnalyzer.Cli.exe --window-size <len> --hop <len> --input-dir <path> --mode <peak-analysis|stft-analysis> [--db-file <path> | --postgres ...] [options]
+
+Required options:
+  --window-size <len>       Analysis window size (ms/s/m/sample/samples)
+  --hop <len>               Hop size (ms/s/m/sample/samples)
+  --input-dir <path>        Input root directory
+  --mode <value>            peak-analysis or stft-analysis
+
+Storage backend:
+  (default: SQLite)
+  --db-file <path>          SQLite db file path
+  --postgres                Enable PostgreSQL storage backend
+
+PostgreSQL connection options (required with --postgres):
+  --postgres-host <host>    PostgreSQL host
+  --postgres-port <port>    PostgreSQL port
+  --postgres-db <name>      PostgreSQL database name
+  --postgres-user <user>    PostgreSQL user
+  --postgres-password <pw>  PostgreSQL password (exclusive with ssl cert/key auth)
+  --postgres-sslcert-path <path>
+                            PostgreSQL client certificate path (requires sslkey-path)
+  --postgres-sslkey-path <path>
+                            PostgreSQL client private key path (requires sslcert-path)
+  --postgres-sslrootcert-path <path>
+                            PostgreSQL root CA certificate path (optional)
+  --postgres-ssh-host <host>
+                            Enable SSH tunnel to PostgreSQL automatically
+  --postgres-ssh-port <port>
+                            SSH port (default: 22)
+  --postgres-ssh-user <user>
+                            SSH user (required with postgres-ssh-host)
+  --postgres-ssh-private-key-path <path>
+                            SSH private key file path (required with postgres-ssh-host)
+  --postgres-ssh-known-hosts-path <path>
+                            SSH known_hosts file path (required with postgres-ssh-host)
+  --postgres-batch-row-count <n>
+                            PostgreSQL mode only. Multi-row INSERT batch size (default: 1)
+
+Optional:
+  --target-sampling <n>hz   Required when window/hop uses sample(s) in stft mode
+  --stems <csv>             Peak mode only. Stem names to analyze (case-insensitive)
+  --table-name-override <n> Override table name (default: peak=T_PeakAnalysis, stft=T_STFTAnalysis)
+  --upsert                  Upsert by unique key
+  --skip-duplicate          Skip duplicates by unique key
+  --min-limit-db <dB>       Clamp lower dB bound for all windows/bins (default: -120.0)
+  --bin-count <n>           STFT mode only. Number of output bands (required in stft-analysis)
+  --delete-current          STFT mode only. Drop current table before processing
+  --recursive               STFT mode only. Scan files recursively from input-dir
+  --stft-proc-threads <n>   STFT mode only. Processing threads per file (default: 1)
+  --peak-proc-threads <n>   Peak mode only. Processing threads per song (default: 1)
+  --stft-file-threads <n>   STFT mode only. Number of files analyzed in parallel (default: 1)
+  --peak-file-threads <n>   Peak mode only. Number of songs analyzed in parallel (default: 1)
+  --insert-queue-size <n>   Bounded queue size between analyze and DB insert (default: 1024)
+  --sqlite-fast-mode        SQLite mode only. Enable write-speed PRAGMA tuning (durability trade-off)
+  --sqlite-batch-row-count <n>
+                            SQLite mode only. Multi-row INSERT batch size (default: 512)
+  --ffmpeg-path <path>      ffmpeg executable path or directory containing ffmpeg/ffprobe
+  --show-progress           Show advanced progress UI on interactive stderr
+  --help, -h                Show help
+
+Examples:
+  SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir /path/to/dir --db-file /path/to/file.db --mode peak-analysis --stems Piano,Drums --peak-file-threads 2 --peak-proc-threads 4 --insert-queue-size 2048 --show-progress
+  SoundAnalyzer.Cli.exe --window-size 2048samples --hop 512samples --target-sampling 44100hz --input-dir /path/to/dir --mode stft-analysis --bin-count 12 --postgres --postgres-host localhost --postgres-port 5432 --postgres-db audio --postgres-user analyzer --postgres-password secret --stft-file-threads 2 --stft-proc-threads 6 --insert-queue-size 4096 --show-progress

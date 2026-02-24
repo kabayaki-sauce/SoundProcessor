@@ -10,6 +10,7 @@ internal static partial class CommandLineParser
     private const int DefaultFileThreads = 1;
     private const int DefaultInsertQueueSize = 1024;
     private const int DefaultSqliteBatchRowCount = 512;
+    private const int DefaultPostgresBatchRowCount = 1;
     private const int DefaultPostgresSshPort = 22;
 
     public static CommandLineParseResult Parse(IReadOnlyList<string> args)
@@ -40,6 +41,7 @@ internal static partial class CommandLineParser
         string? sqliteBatchRowCountText = null;
         string? postgresHostText = null;
         string? postgresPortText = null;
+        string? postgresBatchRowCountText = null;
         string? postgresDbText = null;
         string? postgresUserText = null;
         string? postgresPasswordText = null;
@@ -312,6 +314,16 @@ internal static partial class CommandLineParser
                 continue;
             }
 
+            if (MatchesOption(token, ConsoleTexts.PostgresBatchRowCountOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    postgresBatchRowCountText = value;
+                }
+
+                continue;
+            }
+
             if (MatchesOption(token, ConsoleTexts.PostgresUserOption))
             {
                 if (TryReadOptionValue(args, ref i, token, errors, out string value))
@@ -447,6 +459,7 @@ internal static partial class CommandLineParser
 
         bool hasPostgresHost = IsSpecified(postgresHostText);
         bool hasPostgresPort = IsSpecified(postgresPortText);
+        bool hasPostgresBatchRowCount = IsSpecified(postgresBatchRowCountText);
         bool hasPostgresDb = IsSpecified(postgresDbText);
         bool hasPostgresUser = IsSpecified(postgresUserText);
         bool hasPostgresPassword = IsSpecified(postgresPasswordText);
@@ -463,6 +476,7 @@ internal static partial class CommandLineParser
         [
             hasPostgresHost ? ConsoleTexts.PostgresHostOption : string.Empty,
             hasPostgresPort ? ConsoleTexts.PostgresPortOption : string.Empty,
+            hasPostgresBatchRowCount ? ConsoleTexts.PostgresBatchRowCountOption : string.Empty,
             hasPostgresDb ? ConsoleTexts.PostgresDbOption : string.Empty,
             hasPostgresUser ? ConsoleTexts.PostgresUserOption : string.Empty,
             hasPostgresPassword ? ConsoleTexts.PostgresPasswordOption : string.Empty,
@@ -710,6 +724,19 @@ internal static partial class CommandLineParser
             }
         }
 
+        int postgresBatchRowCount = DefaultPostgresBatchRowCount;
+        if (!string.IsNullOrWhiteSpace(postgresBatchRowCountText))
+        {
+            if (!TryParsePositiveInt(postgresBatchRowCountText!, out int parsedPostgresBatchRowCount))
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidIntegerPrefix, postgresBatchRowCountText!));
+            }
+            else
+            {
+                postgresBatchRowCount = parsedPostgresBatchRowCount;
+            }
+        }
+
         int? postgresSshPort = null;
         if (!string.IsNullOrWhiteSpace(postgresSshPortText))
         {
@@ -863,6 +890,7 @@ internal static partial class CommandLineParser
             showProgress,
             postgresHostText,
             postgresPort,
+            postgresBatchRowCount,
             postgresDbText,
             postgresUserText,
             postgresPasswordText,

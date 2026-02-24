@@ -41,6 +41,7 @@ internal static class ConsoleTexts
     public const string PostgresSshUserOption = "--postgres-ssh-user";
     public const string PostgresSshPrivateKeyPathOption = "--postgres-ssh-private-key-path";
     public const string PostgresSshKnownHostsPathOption = "--postgres-ssh-known-hosts-path";
+    public const string PostgresBatchRowCountOption = "--postgres-batch-row-count";
     public const string HelpOption = "--help";
     public const string ShortHelpOption = "-h";
 
@@ -88,6 +89,8 @@ PostgreSQL connection options (required with --postgres):
                             SSH private key file path (required with postgres-ssh-host)
   --postgres-ssh-known-hosts-path <path>
                             SSH known_hosts file path (required with postgres-ssh-host)
+  --postgres-batch-row-count <n>
+                            PostgreSQL mode only. Multi-row INSERT batch size (default: 1)
 
 Optional:
   --target-sampling <n>hz   Required when window/hop uses sample(s) in stft mode

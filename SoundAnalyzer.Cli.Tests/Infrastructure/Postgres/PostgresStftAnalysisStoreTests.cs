@@ -29,7 +29,8 @@ public sealed class PostgresStftAnalysisStoreTests
                        anchorColumnName: "ms",
                        conflictMode: SqliteConflictMode.Error,
                        binCount: 4,
-                       deleteCurrent: false))
+                       deleteCurrent: false,
+                       batchRowCount: 512))
             {
                 store.Initialize();
                 store.Write(new StftAnalysisPoint("SongA", 0, 50, 10, CreateBins(4, -12.0)));
@@ -37,6 +38,42 @@ public sealed class PostgresStftAnalysisStoreTests
             }
 
             Assert.Equal(4, ReadRowCount(connectionOptions, tableName));
+        }
+        finally
+        {
+            DropTableIfExists(connectionOptions, tableName);
+        }
+    }
+
+    [Fact]
+    public void Write_ShouldClampBatchRowCount_WhenConfiguredBatchIsTooLarge()
+    {
+        PostgresConnectionOptions? connectionOptions = PostgresTestEnvironment.GetConnectionOptionsOrNull();
+        if (connectionOptions is null)
+        {
+            return;
+        }
+        string tableName = PostgresTestEnvironment.CreateRandomTableName("t_stft_pg");
+        const int binCount = 9_000;
+
+        try
+        {
+            using (PostgresStftAnalysisStore store = new(
+                       connectionOptions,
+                       sshOptions: null,
+                       tableName,
+                       anchorColumnName: "ms",
+                       conflictMode: SqliteConflictMode.Error,
+                       binCount: binCount,
+                       deleteCurrent: false,
+                       batchRowCount: 100_000))
+            {
+                store.Initialize();
+                store.Write(new StftAnalysisPoint("SongA", 0, 50, 10, CreateBins(binCount, -12.0)));
+                store.Complete();
+            }
+
+            Assert.Equal(binCount, ReadRowCount(connectionOptions, tableName));
         }
         finally
         {
@@ -63,7 +100,8 @@ public sealed class PostgresStftAnalysisStoreTests
                        anchorColumnName: "ms",
                        conflictMode: SqliteConflictMode.Upsert,
                        binCount: 4,
-                       deleteCurrent: false))
+                       deleteCurrent: false,
+                       batchRowCount: 512))
             {
                 store.Initialize();
                 store.Write(new StftAnalysisPoint("SongA", 0, 50, 10, CreateBins(4, -12.0)));
@@ -77,7 +115,8 @@ public sealed class PostgresStftAnalysisStoreTests
                        anchorColumnName: "ms",
                        conflictMode: SqliteConflictMode.Upsert,
                        binCount: 4,
-                       deleteCurrent: false))
+                       deleteCurrent: false,
+                       batchRowCount: 512))
             {
                 store.Initialize();
                 store.Write(new StftAnalysisPoint("SongA", 0, 50, 10, CreateBins(4, -6.0)));
@@ -94,7 +133,8 @@ public sealed class PostgresStftAnalysisStoreTests
                        anchorColumnName: "ms",
                        conflictMode: SqliteConflictMode.SkipDuplicate,
                        binCount: 4,
-                       deleteCurrent: false))
+                       deleteCurrent: false,
+                       batchRowCount: 512))
             {
                 store.Initialize();
                 store.Write(new StftAnalysisPoint("SongA", 0, 50, 10, CreateBins(4, -2.0)));
@@ -130,7 +170,8 @@ public sealed class PostgresStftAnalysisStoreTests
                        anchorColumnName: "ms",
                        conflictMode: SqliteConflictMode.Error,
                        binCount: 4,
-                       deleteCurrent: false))
+                       deleteCurrent: false,
+                       batchRowCount: 512))
             {
                 first.Initialize();
                 first.Write(new StftAnalysisPoint("SongA", 0, 50, 10, CreateBins(4, -12.0)));
@@ -144,7 +185,8 @@ public sealed class PostgresStftAnalysisStoreTests
                 anchorColumnName: "ms",
                 conflictMode: SqliteConflictMode.Error,
                 binCount: 8,
-                deleteCurrent: false);
+                deleteCurrent: false,
+                batchRowCount: 512);
 
             CliException exception = Assert.Throws<CliException>(() => second.Initialize());
             Assert.Equal(CliErrorCode.StftTableBinCountMismatch, exception.ErrorCode);
@@ -174,7 +216,8 @@ public sealed class PostgresStftAnalysisStoreTests
                        anchorColumnName: "ms",
                        conflictMode: SqliteConflictMode.Error,
                        binCount: 4,
-                       deleteCurrent: false))
+                       deleteCurrent: false,
+                       batchRowCount: 512))
             {
                 first.Initialize();
                 first.Complete();
@@ -187,7 +230,8 @@ public sealed class PostgresStftAnalysisStoreTests
                 anchorColumnName: "sample",
                 conflictMode: SqliteConflictMode.Error,
                 binCount: 4,
-                deleteCurrent: false);
+                deleteCurrent: false,
+                batchRowCount: 512);
 
             CliException exception = Assert.Throws<CliException>(() => second.Initialize());
             Assert.Equal(CliErrorCode.StftTableSchemaMismatch, exception.ErrorCode);
@@ -217,7 +261,8 @@ public sealed class PostgresStftAnalysisStoreTests
                        anchorColumnName: "ms",
                        conflictMode: SqliteConflictMode.Error,
                        binCount: 4,
-                       deleteCurrent: false))
+                       deleteCurrent: false,
+                       batchRowCount: 512))
             {
                 first.Initialize();
                 first.Complete();
@@ -230,7 +275,8 @@ public sealed class PostgresStftAnalysisStoreTests
                        anchorColumnName: "sample",
                        conflictMode: SqliteConflictMode.Error,
                        binCount: 6,
-                       deleteCurrent: true))
+                       deleteCurrent: true,
+                       batchRowCount: 512))
             {
                 second.Initialize();
                 second.Complete();

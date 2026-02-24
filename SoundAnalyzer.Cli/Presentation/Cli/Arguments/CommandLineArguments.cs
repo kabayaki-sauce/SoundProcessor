@@ -31,6 +31,7 @@ internal sealed class CommandLineArguments
         bool showProgress,
         string? postgresHost,
         int? postgresPort,
+        int postgresBatchRowCount,
         string? postgresDatabase,
         string? postgresUser,
         string? postgresPassword,
@@ -69,6 +70,8 @@ internal sealed class CommandLineArguments
         {
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(postgresPort.Value);
         }
+
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(postgresBatchRowCount);
 
         if (postgresSshPort.HasValue)
         {
@@ -113,6 +116,7 @@ internal sealed class CommandLineArguments
         ShowProgress = showProgress;
         PostgresHost = string.IsNullOrWhiteSpace(postgresHost) ? null : postgresHost.Trim();
         PostgresPort = postgresPort;
+        PostgresBatchRowCount = postgresBatchRowCount;
         PostgresDatabase = string.IsNullOrWhiteSpace(postgresDatabase) ? null : postgresDatabase.Trim();
         PostgresUser = string.IsNullOrWhiteSpace(postgresUser) ? null : postgresUser.Trim();
         PostgresPassword = string.IsNullOrWhiteSpace(postgresPassword) ? null : postgresPassword;
@@ -181,6 +185,8 @@ internal sealed class CommandLineArguments
     public string? PostgresHost { get; }
 
     public int? PostgresPort { get; }
+
+    public int PostgresBatchRowCount { get; }
 
     public string? PostgresDatabase { get; }
 

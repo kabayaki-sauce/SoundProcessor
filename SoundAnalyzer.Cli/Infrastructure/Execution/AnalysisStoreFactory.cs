@@ -16,7 +16,8 @@ internal sealed class AnalysisStoreFactory : IAnalysisStoreFactory
                 BuildPostgresConnectionOptions(arguments),
                 BuildPostgresSshOptions(arguments),
                 arguments.TableName,
-                conflictMode),
+                conflictMode,
+                arguments.PostgresBatchRowCount),
             _ => new SqlitePeakAnalysisStore(
                 arguments.DbFilePath ?? throw new CliException(CliErrorCode.DbFileRequired, "SQLite mode requires db file path."),
                 arguments.TableName,
@@ -44,7 +45,8 @@ internal sealed class AnalysisStoreFactory : IAnalysisStoreFactory
                 anchorColumnName,
                 conflictMode,
                 binCount,
-                arguments.DeleteCurrent),
+                arguments.DeleteCurrent,
+                arguments.PostgresBatchRowCount),
             _ => new SqliteStftAnalysisStore(
                 arguments.DbFilePath ?? throw new CliException(CliErrorCode.DbFileRequired, "SQLite mode requires db file path."),
                 arguments.TableName,
