@@ -5,7 +5,8 @@ AudioProcessor は、オーディオ解析・変換ツール群を提供する .
 現時点では次の実行可能な機能を提供しています。
 
 - 無音区間ベース分割: `AudioSplitter.Cli`
-- 窓ピーク dB 解析 + SQLite 保存: `SoundAnalyzer.Cli`
+- 窓ピーク dB 解析 + SQLite 保存: `SoundAnalyzer.Cli --mode peak-analysis`
+- 窓SFFT解析（チャネル別band dB）+ SQLite 保存: `SoundAnalyzer.Cli --mode sfft-analysis`
 
 ## プロジェクト構成
 
@@ -15,16 +16,20 @@ AudioProcessor は、オーディオ解析・変換ツール群を提供する .
 | `AudioSplitter.Core` | Library | 無音分割ドメイン、境界計算、分割ユースケース |
 | `AudioSplitter.Cli` | CLI | 無音分割のコマンドライン実行層 |
 | `PeakAnalyzer.Core` | Library | hop/window ベースのピーク dB 窓解析コア |
+| `SFFTAnalyzer.Core` | Library | hop/window ベースの短時間FFT band解析コア |
 | `SoundAnalyzer.Cli` | CLI | ディレクトリ一括解析と SQLite 永続化 |
 | `AudioProcessor.Tests` | Test | `AudioProcessor` の単体テスト |
 | `AudioSplitter.Core.Tests` | Test | `AudioSplitter.Core` の単体テスト |
+| `AudioSplitter.Cli.Tests` | Test | `AudioSplitter.Cli` の単体テスト |
 | `PeakAnalyzer.Core.Tests` | Test | `PeakAnalyzer.Core` の単体テスト |
+| `SFFTAnalyzer.Core.Tests` | Test | `SFFTAnalyzer.Core` の単体テスト |
 | `SoundAnalyzer.Cli.Tests` | Test | `SoundAnalyzer.Cli` の単体テスト |
 
 ## 依存方向
 
 - `AudioSplitter.Cli -> AudioSplitter.Core -> AudioProcessor`
 - `SoundAnalyzer.Cli -> PeakAnalyzer.Core -> AudioProcessor`
+- `SoundAnalyzer.Cli -> SFFTAnalyzer.Core -> AudioProcessor`
 
 ## 前提環境
 
@@ -52,7 +57,7 @@ dotnet run --project AudioSplitter.Cli -- \
   --resume-offset -200ms
 ```
 
-### SoundAnalyzer.Cli
+### SoundAnalyzer.Cli (peak-analysis)
 
 ```powershell
 dotnet run --project SoundAnalyzer.Cli -- \
@@ -64,6 +69,21 @@ dotnet run --project SoundAnalyzer.Cli -- \
   --stems Piano,Drums,Vocals \
   --table-name-override T_PEAK \
   --upsert
+```
+
+### SoundAnalyzer.Cli (sfft-analysis)
+
+```powershell
+dotnet run --project SoundAnalyzer.Cli -- \
+  --window-size 50ms \
+  --hop 10ms \
+  --input-dir /path/to/dir \
+  --db-file /path/to/file.db \
+  --mode sfft-analysis \
+  --bin-count 12 \
+  --table-name-override T_SFFT \
+  --upsert \
+  --recursive
 ```
 
 ## ライセンス
@@ -96,4 +116,5 @@ dotnet run --project SoundAnalyzer.Cli -- \
 - [`AudioSplitter.Core/README.md`](AudioSplitter.Core/README.md)
 - [`AudioSplitter.Cli/README.md`](AudioSplitter.Cli/README.md)
 - [`PeakAnalyzer.Core/README.md`](PeakAnalyzer.Core/README.md)
+- [`SFFTAnalyzer.Core/README.md`](SFFTAnalyzer.Core/README.md)
 - [`SoundAnalyzer.Cli/README.md`](SoundAnalyzer.Cli/README.md)
