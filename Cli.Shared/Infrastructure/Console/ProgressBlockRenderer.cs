@@ -246,25 +246,38 @@ internal sealed class ProgressBlockRenderer
 
     private static int ResolveWidth()
     {
+        int? bufferWidth = null;
         try
         {
-            return Math.Max(60, System.Console.BufferWidth - 1);
+            bufferWidth = System.Console.BufferWidth;
         }
         catch (Exception ex) when (ex is IOException or ArgumentOutOfRangeException)
         {
-            string? columnsText = Environment.GetEnvironmentVariable("COLUMNS");
-            bool parsed = int.TryParse(
-                columnsText,
-                NumberStyles.Integer,
-                CultureInfo.InvariantCulture,
-                out int parsedColumns);
-            if (parsed && parsedColumns > 1)
-            {
-                return Math.Max(60, parsedColumns - 1);
-            }
-
-            return 80;
+            bufferWidth = null;
         }
+
+        string? columnsText = Environment.GetEnvironmentVariable("COLUMNS");
+        return ResolveWidthFromSnapshot(bufferWidth, columnsText);
+    }
+
+    internal static int ResolveWidthFromSnapshot(int? bufferWidth, string? columnsText)
+    {
+        if (bufferWidth is > 1)
+        {
+            return Math.Max(60, bufferWidth.Value - 1);
+        }
+
+        bool parsed = int.TryParse(
+            columnsText,
+            NumberStyles.Integer,
+            CultureInfo.InvariantCulture,
+            out int parsedColumns);
+        if (parsed && parsedColumns > 1)
+        {
+            return Math.Max(60, parsedColumns - 1);
+        }
+
+        return 80;
     }
 
     private static int GetCurrentCursorTop()
