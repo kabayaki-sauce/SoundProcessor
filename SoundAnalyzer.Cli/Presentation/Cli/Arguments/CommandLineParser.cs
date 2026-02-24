@@ -23,9 +23,12 @@ internal static partial class CommandLineParser
         string? modeText = null;
         string? tableNameOverride = null;
         string? minLimitDbText = null;
+        string? binCountText = null;
         string? ffmpegPath = null;
         bool upsert = false;
         bool skipDuplicate = false;
+        bool deleteCurrent = false;
+        bool recursive = false;
 
         List<string> errors = new();
 
@@ -46,6 +49,18 @@ internal static partial class CommandLineParser
             if (MatchesOption(token, ConsoleTexts.SkipDuplicateOption))
             {
                 skipDuplicate = true;
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.DeleteCurrentOption))
+            {
+                deleteCurrent = true;
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.RecursiveOption))
+            {
+                recursive = true;
                 continue;
             }
 
@@ -129,6 +144,16 @@ internal static partial class CommandLineParser
                 continue;
             }
 
+            if (MatchesOption(token, ConsoleTexts.BinCountOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    binCountText = value;
+                }
+
+                continue;
+            }
+
             if (MatchesOption(token, ConsoleTexts.FfmpegPathOption))
             {
                 if (TryReadOptionValue(args, ref i, token, errors, out string value))
@@ -186,7 +211,9 @@ internal static partial class CommandLineParser
             errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidTimePrefix, hopValue));
         }
 
-        if (!string.Equals(modeValue, ConsoleTexts.PeakAnalysisMode, StringComparison.OrdinalIgnoreCase))
+        bool isPeakMode = string.Equals(modeValue, ConsoleTexts.PeakAnalysisMode, StringComparison.OrdinalIgnoreCase);
+        bool isSfftMode = string.Equals(modeValue, ConsoleTexts.SfftAnalysisMode, StringComparison.OrdinalIgnoreCase);
+        if (!isPeakMode && !isSfftMode)
         {
             errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidModePrefix, modeValue));
         }
@@ -204,9 +231,55 @@ internal static partial class CommandLineParser
             }
         }
 
+        int? binCount = null;
+        if (!string.IsNullOrWhiteSpace(binCountText))
+        {
+            if (!TryParsePositiveInt(binCountText!, out int parsedBinCount))
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidIntegerPrefix, binCountText!));
+            }
+            else
+            {
+                binCount = parsedBinCount;
+            }
+        }
+
+        if (isSfftMode)
+        {
+            if (binCount is null)
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.MissingOptionPrefix, ConsoleTexts.BinCountOption));
+            }
+
+            if (stemsText is not null)
+            {
+                errors.Add(ConsoleTexts.StemsNotSupportedForSfftText);
+            }
+        }
+
+        if (isPeakMode)
+        {
+            if (binCount is not null)
+            {
+                errors.Add(ConsoleTexts.BinCountOnlyForSfftText);
+            }
+
+            if (deleteCurrent)
+            {
+                errors.Add(ConsoleTexts.DeleteCurrentOnlyForSfftText);
+            }
+
+            if (recursive)
+            {
+                errors.Add(ConsoleTexts.RecursiveOnlyForSfftText);
+            }
+        }
+
+        string defaultTableName = isSfftMode ? ConsoleTexts.DefaultSfftTableName : ConsoleTexts.DefaultPeakTableName;
         string tableName = string.IsNullOrWhiteSpace(tableNameOverride)
-            ? ConsoleTexts.DefaultTableName
+            ? defaultTableName
             : tableNameOverride!.Trim();
+
         if (!IsValidTableName(tableName))
         {
             errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidTableNamePrefix, tableName));
@@ -233,17 +306,21 @@ internal static partial class CommandLineParser
             return CommandLineParseResult.Failure(errors);
         }
 
+        string mode = isSfftMode ? ConsoleTexts.SfftAnalysisMode : ConsoleTexts.PeakAnalysisMode;
         CommandLineArguments arguments = new(
             windowMs,
             hopMs,
             inputDirPath!,
             dbFilePath!,
             stems,
-            ConsoleTexts.PeakAnalysisMode,
+            mode,
             tableName,
             upsert,
             skipDuplicate,
             minLimitDb,
+            binCount,
+            deleteCurrent,
+            recursive,
             ffmpegPath);
         return CommandLineParseResult.Success(arguments);
     }
@@ -310,6 +387,29 @@ internal static partial class CommandLineParser
         }
 
         milliseconds = checked((long)rounded);
+        return true;
+    }
+
+    internal static bool TryParsePositiveInt(string text, out int value)
+    {
+        value = default;
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        if (!long.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out long parsed))
+        {
+            return false;
+        }
+
+        if (parsed <= 0 || parsed > int.MaxValue)
+        {
+            return false;
+        }
+
+        value = checked((int)parsed);
         return true;
     }
 

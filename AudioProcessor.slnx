@@ -7,6 +7,8 @@
   <Project Path="AudioSplitter.Core/AudioSplitter.Core.csproj" />
   <Project Path="PeakAnalyzer.Core.Tests/PeakAnalyzer.Core.Tests.csproj" />
   <Project Path="PeakAnalyzer.Core/PeakAnalyzer.Core.csproj" />
+  <Project Path="SFFTAnalyzer.Core.Tests/SFFTAnalyzer.Core.Tests.csproj" />
+  <Project Path="SFFTAnalyzer.Core/SFFTAnalyzer.Core.csproj" />
   <Project Path="SoundAnalyzer.Cli.Tests/SoundAnalyzer.Cli.Tests.csproj" />
   <Project Path="SoundAnalyzer.Cli/SoundAnalyzer.Cli.csproj" />
 </Solution>

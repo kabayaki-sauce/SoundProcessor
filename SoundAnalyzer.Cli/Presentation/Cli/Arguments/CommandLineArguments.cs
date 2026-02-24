@@ -13,6 +13,9 @@ internal sealed class CommandLineArguments
         bool upsert,
         bool skipDuplicate,
         double minLimitDb,
+        int? binCount,
+        bool deleteCurrent,
+        bool recursive,
         string? ffmpegPath)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(windowSizeMs);
@@ -27,6 +30,11 @@ internal sealed class CommandLineArguments
             throw new ArgumentOutOfRangeException(nameof(minLimitDb));
         }
 
+        if (binCount.HasValue)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(binCount.Value);
+        }
+
         WindowSizeMs = windowSizeMs;
         HopMs = hopMs;
         InputDirectoryPath = inputDirectoryPath;
@@ -37,6 +45,9 @@ internal sealed class CommandLineArguments
         Upsert = upsert;
         SkipDuplicate = skipDuplicate;
         MinLimitDb = minLimitDb;
+        BinCount = binCount;
+        DeleteCurrent = deleteCurrent;
+        Recursive = recursive;
         FfmpegPath = ffmpegPath;
     }
 
@@ -59,6 +70,12 @@ internal sealed class CommandLineArguments
     public bool SkipDuplicate { get; }
 
     public double MinLimitDb { get; }
+
+    public int? BinCount { get; }
+
+    public bool DeleteCurrent { get; }
+
+    public bool Recursive { get; }
 
     public string? FfmpegPath { get; }
 }
