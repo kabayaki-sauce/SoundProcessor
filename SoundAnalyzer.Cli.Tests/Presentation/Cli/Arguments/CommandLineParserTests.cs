@@ -352,6 +352,8 @@ public sealed class CommandLineParserTests
         Assert.Equal(1, result.Arguments.StftFileThreads);
         Assert.Equal(1, result.Arguments.PeakFileThreads);
         Assert.Equal(1024, result.Arguments.InsertQueueSize);
+        Assert.False(result.Arguments.SqliteFastMode);
+        Assert.Equal(512, result.Arguments.SqliteBatchRowCount);
     }
 
     [Fact]
@@ -365,6 +367,8 @@ public sealed class CommandLineParserTests
             "--stft-file-threads", "3",
             "--peak-file-threads", "2",
             "--insert-queue-size", "4096",
+            "--sqlite-fast-mode",
+            "--sqlite-batch-row-count", "256",
         ];
 
         CommandLineParseResult result = CommandLineParser.Parse(args);
@@ -376,5 +380,58 @@ public sealed class CommandLineParserTests
         Assert.Equal(3, result.Arguments.StftFileThreads);
         Assert.Equal(2, result.Arguments.PeakFileThreads);
         Assert.Equal(4096, result.Arguments.InsertQueueSize);
+        Assert.True(result.Arguments.SqliteFastMode);
+        Assert.Equal(256, result.Arguments.SqliteBatchRowCount);
+    }
+
+    [Fact]
+    public void Parse_ShouldFail_WhenSqliteBatchRowCountIsInvalid()
+    {
+        string[] args =
+        [
+            .. BaseStftArgs,
+            "--sqlite-batch-row-count", "0",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(
+            result.Errors,
+            error => error.Contains("Invalid integer value", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Parse_ShouldFail_WhenSqliteBatchRowCountIsNegative()
+    {
+        string[] args =
+        [
+            .. BaseStftArgs,
+            "--sqlite-batch-row-count", "-10",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(
+            result.Errors,
+            error => error.Contains("Invalid integer value", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Parse_ShouldFail_WhenSqliteBatchRowCountIsNotNumeric()
+    {
+        string[] args =
+        [
+            .. BaseStftArgs,
+            "--sqlite-batch-row-count", "abc",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(
+            result.Errors,
+            error => error.Contains("Invalid integer value", StringComparison.Ordinal));
     }
 }

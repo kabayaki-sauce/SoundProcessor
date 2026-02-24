@@ -53,6 +53,7 @@ internal sealed class PeakAnalysisBatchExecutor
             arguments.Stems);
         List<SongBatch> songs = BuildSongBatches(resolved.Files);
         SqliteConflictMode conflictMode = BatchExecutionSupport.ResolveConflictMode(arguments);
+        SqliteWriteOptions writeOptions = new(arguments.SqliteFastMode, arguments.SqliteBatchRowCount);
 
         using SoundAnalyzerProgressTracker progressTracker = SoundAnalyzerProgressTracker.Create(
             arguments.ShowProgress,
@@ -62,7 +63,7 @@ internal sealed class PeakAnalysisBatchExecutor
             arguments.PeakFileThreads,
             arguments.InsertQueueSize);
 
-        using SqlitePeakAnalysisStore store = new(arguments.DbFilePath, arguments.TableName, conflictMode);
+        using SqlitePeakAnalysisStore store = new(arguments.DbFilePath, arguments.TableName, conflictMode, writeOptions);
         store.Initialize();
 
         FfmpegToolPaths? progressProbeToolPaths = null;

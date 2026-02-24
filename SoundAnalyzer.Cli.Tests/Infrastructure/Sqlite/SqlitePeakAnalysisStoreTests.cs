@@ -158,6 +158,60 @@ public sealed class SqlitePeakAnalysisStoreTests
         }
     }
 
+    [Fact]
+    public void Write_ShouldFlushAcrossBatchBoundaries()
+    {
+        string dbFilePath = CreateTempDbPath();
+        try
+        {
+            using (SqlitePeakAnalysisStore store = new(
+                       dbFilePath,
+                       "T_PeakAnalysis",
+                       SqliteConflictMode.Error,
+                       writeOptions: new SqliteWriteOptions(fastMode: false, batchRowCount: 3)))
+            {
+                store.Initialize();
+                for (int i = 1; i <= 7; i++)
+                {
+                    store.Write(new PeakAnalysisPoint("Album", "Piano", 50, i, -12.0));
+                }
+
+                store.Complete();
+            }
+
+            Assert.Equal(7, ReadRowCount(dbFilePath));
+        }
+        finally
+        {
+            DeleteIfExists(dbFilePath);
+        }
+    }
+
+    [Fact]
+    public void Complete_ShouldFailOnDuplicateRows_WhenNewTableUsesDeferredUniqueIndex()
+    {
+        string dbFilePath = CreateTempDbPath();
+        try
+        {
+            PeakAnalysisPoint point = new("Album", "Piano", 50, 10, -12.0);
+            using SqlitePeakAnalysisStore store = new(
+                dbFilePath,
+                "T_PeakAnalysis",
+                SqliteConflictMode.Error,
+                writeOptions: new SqliteWriteOptions(fastMode: false, batchRowCount: 8));
+
+            store.Initialize();
+            store.Write(point);
+            store.Write(point);
+
+            _ = Assert.Throws<SqliteException>(() => store.Complete());
+        }
+        finally
+        {
+            DeleteIfExists(dbFilePath);
+        }
+    }
+
     private static SqliteConnection OpenConnection(string dbFilePath)
     {
         SqliteConnectionStringBuilder builder = new()

@@ -25,6 +25,8 @@ internal sealed class CommandLineArguments
         int stftFileThreads,
         int peakFileThreads,
         int insertQueueSize,
+        bool sqliteFastMode,
+        int sqliteBatchRowCount,
         bool showProgress)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(windowValue);
@@ -38,6 +40,7 @@ internal sealed class CommandLineArguments
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(stftFileThreads);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(peakFileThreads);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(insertQueueSize);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sqliteBatchRowCount);
 
         if (targetSamplingHz.HasValue)
         {
@@ -76,6 +79,8 @@ internal sealed class CommandLineArguments
         StftFileThreads = stftFileThreads;
         PeakFileThreads = peakFileThreads;
         InsertQueueSize = insertQueueSize;
+        SqliteFastMode = sqliteFastMode;
+        SqliteBatchRowCount = sqliteBatchRowCount;
         ShowProgress = showProgress;
     }
 
@@ -122,6 +127,10 @@ internal sealed class CommandLineArguments
     public int PeakFileThreads { get; }
 
     public int InsertQueueSize { get; }
+
+    public bool SqliteFastMode { get; }
+
+    public int SqliteBatchRowCount { get; }
 
     public bool ShowProgress { get; }
 

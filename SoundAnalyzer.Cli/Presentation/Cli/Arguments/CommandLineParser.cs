@@ -9,6 +9,7 @@ internal static partial class CommandLineParser
     private const int DefaultProcessingThreads = 1;
     private const int DefaultFileThreads = 1;
     private const int DefaultInsertQueueSize = 1024;
+    private const int DefaultSqliteBatchRowCount = 512;
 
     public static CommandLineParseResult Parse(IReadOnlyList<string> args)
     {
@@ -35,10 +36,12 @@ internal static partial class CommandLineParser
         string? stftFileThreadsText = null;
         string? peakFileThreadsText = null;
         string? insertQueueSizeText = null;
+        string? sqliteBatchRowCountText = null;
         bool upsert = false;
         bool skipDuplicate = false;
         bool deleteCurrent = false;
         bool recursive = false;
+        bool sqliteFastMode = false;
         bool showProgress = false;
 
         List<string> errors = new();
@@ -79,6 +82,12 @@ internal static partial class CommandLineParser
             if (MatchesOption(token, ConsoleTexts.ShowProgressOption))
             {
                 showProgress = true;
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.SqliteFastModeOption))
+            {
+                sqliteFastMode = true;
                 continue;
             }
 
@@ -242,6 +251,16 @@ internal static partial class CommandLineParser
                 continue;
             }
 
+            if (MatchesOption(token, ConsoleTexts.SqliteBatchRowCountOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    sqliteBatchRowCountText = value;
+                }
+
+                continue;
+            }
+
             errors.Add(ConsoleTexts.WithValue(ConsoleTexts.UnknownOptionPrefix, token));
         }
 
@@ -397,6 +416,19 @@ internal static partial class CommandLineParser
             }
         }
 
+        int sqliteBatchRowCount = DefaultSqliteBatchRowCount;
+        if (!string.IsNullOrWhiteSpace(sqliteBatchRowCountText))
+        {
+            if (!TryParsePositiveInt(sqliteBatchRowCountText!, out int parsedSqliteBatchRowCount))
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidIntegerPrefix, sqliteBatchRowCountText!));
+            }
+            else
+            {
+                sqliteBatchRowCount = parsedSqliteBatchRowCount;
+            }
+        }
+
         bool usesSampleUnit = windowLength.IsSample || hopLength.IsSample;
 
         if (isStftMode)
@@ -525,6 +557,8 @@ internal static partial class CommandLineParser
             stftFileThreads,
             peakFileThreads,
             insertQueueSize,
+            sqliteFastMode,
+            sqliteBatchRowCount,
             showProgress);
         return CommandLineParseResult.Success(arguments, warnings);
     }

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using Microsoft.Data.Sqlite;
 using STFTAnalyzer.Core.Application.Ports;
 using STFTAnalyzer.Core.Domain.Models;
@@ -9,17 +10,22 @@ namespace SoundAnalyzer.Cli.Infrastructure.Sqlite;
 #pragma warning disable CA2100
 internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDisposable
 {
+    private const int InsertColumnCount = 8;
+
     private readonly string dbFilePath;
     private readonly string tableName;
     private readonly string anchorColumnName;
     private readonly SqliteConflictMode conflictMode;
     private readonly int binCount;
     private readonly bool deleteCurrent;
+    private readonly SqliteWriteOptions writeOptions;
 
     private SqliteConnection? connection;
     private SqliteTransaction? transaction;
-    private SqliteCommand? insertCommand;
     private bool completed;
+    private bool deferIndexCreation;
+    private bool indexesCreated;
+    private int effectiveBatchRowCount;
 
     public SqliteStftAnalysisStore(
         string dbFilePath,
@@ -27,7 +33,8 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
         string anchorColumnName,
         SqliteConflictMode conflictMode,
         int binCount,
-        bool deleteCurrent)
+        bool deleteCurrent,
+        SqliteWriteOptions? writeOptions = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dbFilePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
@@ -47,6 +54,7 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
         this.conflictMode = conflictMode;
         this.binCount = binCount;
         this.deleteCurrent = deleteCurrent;
+        this.writeOptions = writeOptions ?? SqliteWriteOptions.Default;
     }
 
     public void Initialize()
@@ -58,15 +66,21 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
 
         connection = new SqliteConnection(BuildConnectionString(dbFilePath));
         connection.Open();
-        _ = SqliteJournalModeConfigurator.TryEnableWal(connection);
+        _ = SqliteJournalModeConfigurator.Configure(connection, writeOptions.FastMode);
+        effectiveBatchRowCount = SqliteBatchSizeCalculator.ResolveEffectiveBatchRowCount(
+            connection,
+            writeOptions.BatchRowCount,
+            InsertColumnCount);
 
         transaction = connection.BeginTransaction();
+        bool tableExists = TableExists(connection, transaction, tableName);
 
         if (deleteCurrent)
         {
             DropTableIfExists(connection, transaction, tableName);
+            tableExists = false;
         }
-        else if (TableExists(connection, transaction, tableName))
+        else if (tableExists)
         {
             ExistingTableSchema schema = ReadExistingTableSchema(connection, transaction, tableName);
             if (schema.ContainsLegacyWideColumns)
@@ -97,9 +111,13 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
         }
 
         CreateTableIfNeeded(connection, transaction, tableName, anchorColumnName);
-        CreateIndexesIfNeeded(connection, transaction, tableName, anchorColumnName);
 
-        insertCommand = BuildInsertCommand(connection, transaction, tableName, anchorColumnName, conflictMode);
+        deferIndexCreation = !tableExists && conflictMode == SqliteConflictMode.Error;
+        if (!deferIndexCreation)
+        {
+            CreateIndexesIfNeeded(connection, transaction, tableName, anchorColumnName);
+            indexesCreated = true;
+        }
     }
 
     public void Write(StftAnalysisPoint point)
@@ -111,23 +129,34 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
             throw new ArgumentException("Point bin-count does not match configured bin-count.", nameof(point));
         }
 
-        SqliteCommand command = insertCommand
+        SqliteConnection currentConnection = connection
+            ?? throw new InvalidOperationException("SqliteStftAnalysisStore is not initialized.");
+        SqliteTransaction currentTransaction = transaction
             ?? throw new InvalidOperationException("SqliteStftAnalysisStore is not initialized.");
 
         long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-        command.Parameters["$name"].Value = point.Name;
-        command.Parameters["$ch"].Value = point.Channel;
-        command.Parameters["$window"].Value = point.Window;
-        command.Parameters["$anchor"].Value = point.Anchor;
-        command.Parameters["$createAt"].Value = nowMs;
-        command.Parameters["$modifiedAt"].Value = nowMs;
-
-        for (int i = 0; i < binCount; i++)
+        int remaining = binCount;
+        int binOffset = 0;
+        while (remaining > 0)
         {
-            command.Parameters["$binNo"].Value = i + 1;
-            command.Parameters["$db"].Value = point.Bins[i];
+            int rowCount = Math.Min(remaining, effectiveBatchRowCount);
+            int startBinNo = binOffset + 1;
+
+            using SqliteCommand command = BuildInsertCommand(
+                currentConnection,
+                currentTransaction,
+                tableName,
+                anchorColumnName,
+                conflictMode,
+                point,
+                nowMs,
+                startBinNo,
+                rowCount);
             _ = command.ExecuteNonQuery();
+
+            binOffset += rowCount;
+            remaining -= rowCount;
         }
     }
 
@@ -137,6 +166,14 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
         if (currentTransaction is null)
         {
             return;
+        }
+
+        if (deferIndexCreation && !indexesCreated)
+        {
+            SqliteConnection currentConnection = connection
+                ?? throw new InvalidOperationException("SqliteStftAnalysisStore is not initialized.");
+            CreateIndexesIfNeeded(currentConnection, currentTransaction, tableName, anchorColumnName);
+            indexesCreated = true;
         }
 
         currentTransaction.Commit();
@@ -154,7 +191,6 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
         }
         finally
         {
-            insertCommand?.Dispose();
             transaction?.Dispose();
             connection?.Dispose();
         }
@@ -267,8 +303,7 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
               "bin_no" INTEGER NOT NULL,
               "db" REAL NOT NULL,
               "create_at" INTEGER NOT NULL,
-              "modified_at" INTEGER NOT NULL,
-              UNIQUE("name", "ch", "window", {quotedAnchorColumn}, "bin_no")
+              "modified_at" INTEGER NOT NULL
             );
             """);
 
@@ -295,6 +330,7 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
 
         string[] statements =
         {
+            BuildUniqueIndexStatement(safePrefix, anchorSuffix, quotedTable, anchorColumnName),
             BuildIndexStatement(safePrefix, "name", quotedTable, "name"),
             BuildIndexStatement(safePrefix, "name_ch", quotedTable, "name", "ch"),
             BuildIndexStatement(safePrefix, string.Create(CultureInfo.InvariantCulture, $"name_{anchorSuffix}"), quotedTable, "name", anchorColumnName),
@@ -309,6 +345,34 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
             command.CommandText = statements[i];
             _ = command.ExecuteNonQuery();
         }
+    }
+
+    private static string BuildUniqueIndexStatement(
+        string prefix,
+        string anchorSuffix,
+        string quotedTable,
+        string anchorColumnName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(prefix);
+        ArgumentException.ThrowIfNullOrWhiteSpace(anchorSuffix);
+        ArgumentException.ThrowIfNullOrWhiteSpace(quotedTable);
+        ArgumentException.ThrowIfNullOrWhiteSpace(anchorColumnName);
+
+        string indexName = QuoteIdentifier(
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"UX_{prefix}_name_ch_window_{anchorSuffix}_bin_no"));
+        string joinedColumns = string.Join(
+            ", ",
+            QuoteIdentifier("name"),
+            QuoteIdentifier("ch"),
+            QuoteIdentifier("window"),
+            QuoteIdentifier(anchorColumnName),
+            QuoteIdentifier("bin_no"));
+
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"CREATE UNIQUE INDEX IF NOT EXISTS {indexName} ON {quotedTable} ({joinedColumns});");
     }
 
     private static string BuildIndexStatement(string prefix, string suffix, string quotedTable, params string[] columns)
@@ -331,53 +395,75 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
         SqliteTransaction transaction,
         string tableName,
         string anchorColumnName,
-        SqliteConflictMode conflictMode)
+        SqliteConflictMode conflictMode,
+        StftAnalysisPoint point,
+        long nowMs,
+        int startBinNo,
+        int rowCount)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(anchorColumnName);
+        ArgumentNullException.ThrowIfNull(point);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(startBinNo);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(rowCount);
 
         string quotedTable = QuoteIdentifier(tableName);
         string quotedAnchorColumn = QuoteIdentifier(anchorColumnName);
 
-        string insertSql = string.Create(
+        SqliteCommand command = connection.CreateCommand();
+        command.Transaction = transaction;
+
+        StringBuilder valuesBuilder = new();
+        for (int i = 0; i < rowCount; i++)
+        {
+            if (i > 0)
+            {
+                _ = valuesBuilder.Append(", ");
+            }
+
+            int binNo = startBinNo + i;
+            _ = valuesBuilder.Append('(');
+            _ = valuesBuilder.Append(
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"$name{i}, $ch{i}, $window{i}, $anchor{i}, $binNo{i}, $db{i}, $createAt{i}, $modifiedAt{i}"));
+            _ = valuesBuilder.Append(')');
+
+            _ = command.Parameters.AddWithValue($"$name{i}", point.Name);
+            _ = command.Parameters.AddWithValue($"$ch{i}", point.Channel);
+            _ = command.Parameters.AddWithValue($"$window{i}", point.Window);
+            _ = command.Parameters.AddWithValue($"$anchor{i}", point.Anchor);
+            _ = command.Parameters.AddWithValue($"$binNo{i}", binNo);
+            _ = command.Parameters.AddWithValue($"$db{i}", point.Bins[binNo - 1]);
+            _ = command.Parameters.AddWithValue($"$createAt{i}", nowMs);
+            _ = command.Parameters.AddWithValue($"$modifiedAt{i}", nowMs);
+        }
+
+        string prefix = string.Create(
             CultureInfo.InvariantCulture,
-            $"INSERT INTO {quotedTable} (\"name\", \"ch\", \"window\", {quotedAnchorColumn}, \"bin_no\", \"db\", \"create_at\", \"modified_at\") VALUES ($name, $ch, $window, $anchor, $binNo, $db, $createAt, $modifiedAt)");
+            $"INSERT INTO {quotedTable} (\"name\", \"ch\", \"window\", {quotedAnchorColumn}, \"bin_no\", \"db\", \"create_at\", \"modified_at\") VALUES ");
 
         string conflictColumns = string.Create(
             CultureInfo.InvariantCulture,
             $"\"name\", \"ch\", \"window\", {quotedAnchorColumn}, \"bin_no\"");
 
-        string sql = conflictMode switch
+        string conflictClause = conflictMode switch
         {
             SqliteConflictMode.Upsert => string.Concat(
-                insertSql,
                 " ON CONFLICT(",
                 conflictColumns,
-                ") DO UPDATE SET \"db\" = excluded.\"db\", \"modified_at\" = excluded.\"modified_at\";"),
+                ") DO UPDATE SET \"db\" = excluded.\"db\", \"modified_at\" = excluded.\"modified_at\""),
             SqliteConflictMode.SkipDuplicate => string.Concat(
-                insertSql,
                 " ON CONFLICT(",
                 conflictColumns,
-                ") DO NOTHING;"),
-            _ => string.Concat(insertSql, ";"),
+                ") DO NOTHING"),
+            _ => string.Empty,
         };
 
-        SqliteCommand command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText = sql;
-
-        _ = command.Parameters.Add("$name", SqliteType.Text);
-        _ = command.Parameters.Add("$ch", SqliteType.Integer);
-        _ = command.Parameters.Add("$window", SqliteType.Integer);
-        _ = command.Parameters.Add("$anchor", SqliteType.Integer);
-        _ = command.Parameters.Add("$binNo", SqliteType.Integer);
-        _ = command.Parameters.Add("$db", SqliteType.Real);
-        _ = command.Parameters.Add("$createAt", SqliteType.Integer);
-        _ = command.Parameters.Add("$modifiedAt", SqliteType.Integer);
+        command.CommandText = string.Concat(prefix, valuesBuilder.ToString(), conflictClause, ";");
         command.Prepare();
-
         return command;
     }
 
