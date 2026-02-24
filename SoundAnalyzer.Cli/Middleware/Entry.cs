@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AudioProcessor.Application.Errors;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
@@ -162,6 +163,7 @@ internal static class Entry
             Warnings = warnings;
         }
 
+        [JsonPropertyName("warnings")]
         public IReadOnlyList<string> Warnings { get; }
     }
 }
