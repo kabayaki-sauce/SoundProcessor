@@ -21,7 +21,7 @@ AudioSplitter.Cli.exe --input-file <path> --output-dir <path> --level <dBFS> --d
 | `--after-offset <time>` | 任意 | 無音開始後に前ファイルへ残す長さ |
 | `--resume-offset <time>` | 任意 | 次有音開始に対する次ファイル開始補正 |
 | `--resolution-type <spec>` | 任意 | `16bit|24bit|32float,<rate>hz` |
-| `--ffmpeg-path <path>` | 任意 | ffmpeg/ffprobe のパスまたは格納ディレクトリ |
+| `--ffmpeg-path <path>` | 任意 | 音声処理ツールのパスまたは格納ディレクトリ（現行実装では ffmpeg/ffprobe） |
 | `-y` | 任意 | 上書き確認を省略 |
 | `--help`, `-h` | 任意 | ヘルプ表示 |
 

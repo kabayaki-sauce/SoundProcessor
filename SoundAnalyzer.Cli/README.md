@@ -24,7 +24,7 @@ SoundAnalyzer.Cli.exe --window-size <time> --hop <time> --input-dir <path> --db-
 | `--upsert` | 任意 | 競合時更新 |
 | `--skip-duplicate` | 任意 | 競合時スキップ |
 | `--min-limit-db <dB>` | 任意 | 下限クランプ（既定 `-120.0`） |
-| `--ffmpeg-path <path>` | 任意 | ffmpeg/ffprobe パス指定 |
+| `--ffmpeg-path <path>` | 任意 | 音声処理ツールのパス指定（現行実装では ffmpeg/ffprobe） |
 | `--help`, `-h` | 任意 | ヘルプ表示 |
 
 `--upsert` と `--skip-duplicate` は同時指定不可です。

@@ -1,7 +1,7 @@
 # AudioProcessor
 
 ## 概要
-AudioProcessor は、FFmpeg を利用したオーディオ解析・変換ツール群を提供する .NET 10 ソリューションです。  
+AudioProcessor は、オーディオ解析・変換ツール群を提供する .NET 10 ソリューションです。  
 現時点では次の実行可能な機能を提供しています。
 
 - 無音区間ベース分割: `AudioSplitter.Cli`
@@ -11,7 +11,7 @@ AudioProcessor は、FFmpeg を利用したオーディオ解析・変換ツー�
 
 | パス | 種別 | 役割 |
 |---|---|---|
-| `AudioProcessor` | Library | FFmpeg 連携、プローブ、PCM ストリーム読取、セグメント出力などの共通基盤 |
+| `AudioProcessor` | Library | 外部オーディオ処理エンジン連携、プローブ、PCM ストリーム読取、セグメント出力などの共通基盤 |
 | `AudioSplitter.Core` | Library | 無音分割ドメイン、境界計算、分割ユースケース |
 | `AudioSplitter.Cli` | CLI | 無音分割のコマンドライン実行層 |
 | `PeakAnalyzer.Core` | Library | hop/window ベースのピーク dB 窓解析コア |
@@ -29,7 +29,7 @@ AudioProcessor は、FFmpeg を利用したオーディオ解析・変換ツー�
 ## 前提環境
 
 - `.NET SDK 10.x`
-- `ffmpeg` と `ffprobe` が `PATH` 上に存在、または CLI オプション `--ffmpeg-path` で指定可能
+- 音声処理に必要な外部ツールが利用可能であること（現行実装では `ffmpeg` / `ffprobe`。CLI オプション `--ffmpeg-path` でパス指定可能）
 - Windows / Linux / macOS で動作可能（実行確認は環境依存）
 
 ## 最小コマンド
