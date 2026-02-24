@@ -1,67 +1,59 @@
 using System.Globalization;
 using System.Text;
+using Cli.Shared.Application.Ports;
 
 namespace SoundAnalyzer.Cli.Infrastructure.Progress;
 
 internal sealed class SoundAnalyzerProgressTracker : IDisposable
 {
+    private const int NameColumnWidth = 12;
     private const int SongsBarWidth = 24;
     private const int QueueBarWidth = 24;
     private const int WorkerGaugeWidth = 24;
-    private const int SongLabelWidth = 24;
-    private static readonly TimeSpan MinRenderInterval = TimeSpan.FromMilliseconds(80);
 
     private readonly object sync = new();
     private readonly bool enabled;
     private readonly bool ansiEnabled;
-    private readonly TextWriter writer;
+    private readonly ITextBlockProgressDisplay progressDisplay;
     private readonly Dictionary<string, SongState> songs = new(StringComparer.OrdinalIgnoreCase);
 
     private WorkerState[] workers = Array.Empty<WorkerState>();
-    private DateTimeOffset lastRenderAt;
-    private int originTop = -1;
-    private int renderedLineCount;
     private long totalSongs;
     private long totalEnqueued;
     private long totalInserted;
     private int queueCapacity = 1;
-    private bool useRelativeAnsiCursor;
     private bool disposed;
 
     private SoundAnalyzerProgressTracker(
         bool enabled,
         bool ansiEnabled,
-        bool useRelativeAnsiCursor,
-        TextWriter writer)
+        ITextBlockProgressDisplay progressDisplay)
     {
         this.enabled = enabled;
         this.ansiEnabled = ansiEnabled;
-        this.useRelativeAnsiCursor = useRelativeAnsiCursor;
-        this.writer = writer ?? throw new ArgumentNullException(nameof(writer));
+        this.progressDisplay = progressDisplay ?? throw new ArgumentNullException(nameof(progressDisplay));
     }
 
-    public static SoundAnalyzerProgressTracker Create(bool showProgress)
+    public static SoundAnalyzerProgressTracker Create(
+        bool showProgress,
+        ITextBlockProgressDisplayFactory progressDisplayFactory)
     {
+        ArgumentNullException.ThrowIfNull(progressDisplayFactory);
+
         if (!showProgress)
         {
-            return new SoundAnalyzerProgressTracker(false, false, false, TextWriter.Null);
+            return new SoundAnalyzerProgressTracker(false, false, NullTextBlockProgressDisplay.Instance);
         }
 
-        bool interactive = !System.Console.IsErrorRedirected && Environment.UserInteractive;
-        if (!interactive)
-        {
-            return new SoundAnalyzerProgressTracker(false, false, false, TextWriter.Null);
-        }
-
-        System.Console.OutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
-        bool ansiEnabled = IsAnsiEnabled();
-        bool useRelativeAnsiCursor = ansiEnabled && System.Console.IsOutputRedirected;
-        return new SoundAnalyzerProgressTracker(true, ansiEnabled, useRelativeAnsiCursor, System.Console.Error);
+        ITextBlockProgressDisplay progressDisplay = progressDisplayFactory.Create(enabled: true);
+        return new SoundAnalyzerProgressTracker(true, IsAnsiEnabled(), progressDisplay);
     }
 
-    internal static SoundAnalyzerProgressTracker CreateForTest(bool ansiEnabled, TextWriter writer)
+    internal static SoundAnalyzerProgressTracker CreateForTest(
+        ITextBlockProgressDisplay progressDisplay,
+        bool ansiEnabled)
     {
-        return new SoundAnalyzerProgressTracker(true, ansiEnabled, false, writer);
+        return new SoundAnalyzerProgressTracker(true, ansiEnabled, progressDisplay);
     }
 
     public void Configure(IReadOnlyList<string> songNames, int threadCount, int queueCapacity)
@@ -219,10 +211,7 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
             }
 
             Render(force: true);
-            if (enabled && renderedLineCount > 0 && !useRelativeAnsiCursor && originTop >= 0)
-            {
-                _ = TrySetCursorPosition(0, originTop + renderedLineCount);
-            }
+            progressDisplay.Complete();
         }
     }
 
@@ -247,73 +236,8 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
             return;
         }
 
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        if (!force && now - lastRenderAt < MinRenderInterval)
-        {
-            return;
-        }
-
-        RenderCore();
-        lastRenderAt = now;
-    }
-
-    private void RenderCore()
-    {
         List<string> lines = BuildLines();
-        int width = ResolveWidth();
-
-        MoveCursorToRenderOrigin();
-
-        for (int i = 0; i < lines.Count; i++)
-        {
-            WriteLineFixed(lines[i], width);
-        }
-
-        if (renderedLineCount > lines.Count)
-        {
-            for (int i = lines.Count; i < renderedLineCount; i++)
-            {
-                WriteLineFixed(string.Empty, width);
-            }
-        }
-
-        renderedLineCount = lines.Count;
-    }
-
-    private void MoveCursorToRenderOrigin()
-    {
-        if (useRelativeAnsiCursor)
-        {
-            if (renderedLineCount > 0)
-            {
-                writer.Write(string.Create(CultureInfo.InvariantCulture, $"\u001b[{renderedLineCount}F"));
-                writer.Flush();
-            }
-
-            return;
-        }
-
-        if (originTop < 0)
-        {
-            originTop = GetCurrentCursorTop();
-            return;
-        }
-
-        bool moved = TrySetCursorPosition(0, originTop);
-        if (moved)
-        {
-            return;
-        }
-
-        if (ansiEnabled && renderedLineCount > 0)
-        {
-            useRelativeAnsiCursor = true;
-            writer.Write(string.Create(CultureInfo.InvariantCulture, $"\u001b[{renderedLineCount}F"));
-            writer.Flush();
-            return;
-        }
-
-        originTop = GetCurrentCursorTop();
+        progressDisplay.Report(lines, force);
     }
 
     private List<string> BuildLines()
@@ -321,25 +245,61 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
         long completedSongs = songs.Values.LongCount(static state => state.AnalyzeCompleted && state.Inserted >= state.Enqueued);
         long safeTotalSongs = totalSongs > 0 ? totalSongs : 1;
         double songsRatio = ClampRatio((double)completedSongs / safeTotalSongs);
-        string songsBar = BuildProgressBar(songsRatio, SongsBarWidth, "97");
         string songsPercent = (songsRatio * 100.0).ToString("0.0", CultureInfo.InvariantCulture);
 
-        string songsLine = string.Create(
+        long queueDepth = Math.Max(0, totalEnqueued - totalInserted);
+        double queueRatio = ClampRatio(queueCapacity > 0 ? (double)queueDepth / queueCapacity : 0);
+        string queuePercent = (queueRatio * 100.0).ToString("0.0", CultureInfo.InvariantCulture);
+
+        string songsLeft = string.Create(
             CultureInfo.InvariantCulture,
-            $"Songs {Math.Min(completedSongs, safeTotalSongs)}/{safeTotalSongs} |{songsBar}| {songsPercent,6}%");
+            $"Songs {Math.Min(completedSongs, safeTotalSongs)}/{safeTotalSongs}");
+        string queueLeft = string.Create(
+            CultureInfo.InvariantCulture,
+            $"Queue {queuePercent,6}% {queueDepth}/{queueCapacity}");
 
         string workerCircles = string.Join(
             " ",
             workers.Select(worker => FormatThreadCircle(worker.IsActive)));
         string threadsLine = string.Create(CultureInfo.InvariantCulture, $"Threads {workerCircles}");
 
-        long queueDepth = Math.Max(0, totalEnqueued - totalInserted);
-        double queueRatio = ClampRatio(queueCapacity > 0 ? (double)queueDepth / queueCapacity : 0);
+        List<WorkerLineState> workerLines = new(workers.Length);
+        int gaugeStartColumn = Math.Max(GetDisplayLength(songsLeft), GetDisplayLength(queueLeft));
+        for (int i = 0; i < workers.Length; i++)
+        {
+            WorkerState worker = workers[i];
+            string active = FormatThreadCircle(worker.IsActive);
+            string songLabel = string.IsNullOrWhiteSpace(worker.SongName) ? "(idle)" : worker.SongName;
+            if (songLabel.Length > NameColumnWidth)
+            {
+                songLabel = songLabel[..NameColumnWidth];
+            }
+
+            string workerLeft = string.Create(
+                CultureInfo.InvariantCulture,
+                $"T{i + 1:00} {active} {songLabel,-12}");
+            if (GetDisplayLength(workerLeft) > gaugeStartColumn)
+            {
+                gaugeStartColumn = GetDisplayLength(workerLeft);
+            }
+
+            WorkerProgress progress = ResolveWorkerProgress(worker);
+            string mergedGauge = BuildMergedGauge(progress.AnalyzeRatio, progress.InsertRatio, WorkerGaugeWidth);
+            string analyzePercent = (progress.AnalyzeRatio * 100.0).ToString("0.0", CultureInfo.InvariantCulture);
+            string insertPercent = (progress.InsertRatio * 100.0).ToString("0.0", CultureInfo.InvariantCulture);
+            workerLines.Add(new WorkerLineState(workerLeft, mergedGauge, analyzePercent, insertPercent));
+        }
+
+        gaugeStartColumn++;
+
+        string songsBar = BuildProgressBar(songsRatio, SongsBarWidth, "97");
         string queueBar = BuildProgressBar(queueRatio, QueueBarWidth, "97");
-        string queuePercent = (queueRatio * 100.0).ToString("0.0", CultureInfo.InvariantCulture);
+        string songsLine = string.Create(
+            CultureInfo.InvariantCulture,
+            $"{PadRightDisplayWidth(songsLeft, gaugeStartColumn)}|{songsBar}| {songsPercent,6}%");
         string queueLine = string.Create(
             CultureInfo.InvariantCulture,
-            $"Queue {queuePercent,6}% |{queueBar}| {queueDepth}/{queueCapacity}");
+            $"{PadRightDisplayWidth(queueLeft, gaugeStartColumn)}|{queueBar}|");
 
         List<string> lines = new(3 + workers.Length)
         {
@@ -348,24 +308,12 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
             queueLine,
         };
 
-        for (int i = 0; i < workers.Length; i++)
+        for (int i = 0; i < workerLines.Count; i++)
         {
-            WorkerState worker = workers[i];
-            string active = FormatThreadCircle(worker.IsActive);
-            string songLabel = string.IsNullOrWhiteSpace(worker.SongName) ? "(idle)" : worker.SongName;
-            if (songLabel.Length > SongLabelWidth)
-            {
-                songLabel = songLabel[..SongLabelWidth];
-            }
-
-            WorkerProgress progress = ResolveWorkerProgress(worker);
-            string mergedGauge = BuildMergedGauge(progress.AnalyzeRatio, progress.InsertRatio, WorkerGaugeWidth);
-            string analyzePercent = (progress.AnalyzeRatio * 100.0).ToString("0.0", CultureInfo.InvariantCulture);
-            string insertPercent = (progress.InsertRatio * 100.0).ToString("0.0", CultureInfo.InvariantCulture);
-
+            WorkerLineState workerLine = workerLines[i];
             string line = string.Create(
                 CultureInfo.InvariantCulture,
-                $"T{i + 1:00} {active} {songLabel,-24} |{mergedGauge}| A {analyzePercent,5}% I {insertPercent,5}%");
+                $"{PadRightDisplayWidth(workerLine.LeftLabel, gaugeStartColumn)}|{workerLine.Gauge}| A {workerLine.AnalyzePercent,5}% I {workerLine.InsertPercent,5}%");
             lines.Add(line);
         }
 
@@ -471,12 +419,15 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
 
     private string FormatThreadCircle(bool isActive)
     {
-        if (ansiEnabled)
+        string symbol = isActive ? "●" : "○";
+        if (!ansiEnabled)
         {
-            return isActive ? PaintGreen("●") : PaintGray("●");
+            return symbol;
         }
 
-        return isActive ? "●" : "○";
+        return isActive
+            ? Paint(symbol, "32")
+            : Paint(symbol, "90");
     }
 
     private WorkerProgress ResolveWorkerProgress(WorkerState worker)
@@ -531,113 +482,18 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
     private WorkerState GetWorker(int workerId)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(workerId, workers.Length);
-
         return workers[workerId];
     }
 
-    private string PaintGreen(string text) => Paint(text, "32");
-
-    private string PaintGray(string text) => Paint(text, "90");
-
-    private string Paint(string text, string code)
+    private static string PadRightDisplayWidth(string text, int targetDisplayWidth)
     {
-        ArgumentNullException.ThrowIfNull(text);
-        ArgumentNullException.ThrowIfNull(code);
-
-        if (!ansiEnabled)
+        int displayLength = GetDisplayLength(text);
+        if (displayLength >= targetDisplayWidth)
         {
             return text;
         }
 
-        return string.Create(CultureInfo.InvariantCulture, $"\u001b[{code}m{text}\u001b[0m");
-    }
-
-    private void WriteLineFixed(string text, int width)
-    {
-        string safeText = TruncateToDisplayWidth(text, width);
-        writer.Write(safeText);
-        int displayLength = GetDisplayLength(safeText);
-        if (displayLength < width)
-        {
-            writer.Write(new string(' ', width - displayLength));
-        }
-
-        writer.WriteLine();
-        writer.Flush();
-    }
-
-    private static string TruncateToDisplayWidth(string text, int width)
-    {
-        ArgumentNullException.ThrowIfNull(text);
-        if (width <= 0 || text.Length == 0)
-        {
-            return string.Empty;
-        }
-
-        StringBuilder builder = new(capacity: text.Length);
-        int displayLength = 0;
-        int index = 0;
-        bool styleActive = false;
-
-        while (index < text.Length && displayLength < width)
-        {
-            if (text[index] == '\u001b' && index + 1 < text.Length && text[index + 1] == '[')
-            {
-                if (!TryReadAnsiEscape(text, index, out int escapeEnd, out string? code))
-                {
-                    break;
-                }
-
-                builder.Append(text, index, escapeEnd - index + 1);
-                styleActive = code is not null && !string.Equals(code, "0", StringComparison.Ordinal);
-                index = escapeEnd + 1;
-                continue;
-            }
-
-            builder.Append(text[index]);
-            displayLength++;
-            index++;
-        }
-
-        while (index < text.Length && text[index] == '\u001b' && index + 1 < text.Length && text[index + 1] == '[')
-        {
-            if (!TryReadAnsiEscape(text, index, out int escapeEnd, out string? code))
-            {
-                break;
-            }
-
-            builder.Append(text, index, escapeEnd - index + 1);
-            styleActive = code is not null && !string.Equals(code, "0", StringComparison.Ordinal);
-            index = escapeEnd + 1;
-        }
-
-        if (styleActive)
-        {
-            builder.Append("\u001b[0m");
-        }
-
-        return builder.ToString();
-    }
-
-    private static bool TryReadAnsiEscape(string text, int index, out int escapeEnd, out string? code)
-    {
-        escapeEnd = index;
-        code = null;
-
-        int cursor = index + 2;
-        while (cursor < text.Length && text[cursor] != 'm')
-        {
-            cursor++;
-        }
-
-        if (cursor >= text.Length)
-        {
-            return false;
-        }
-
-        code = text[(index + 2)..cursor];
-        escapeEnd = cursor;
-        return true;
+        return string.Concat(text, new string(' ', targetDisplayWidth - displayLength));
     }
 
     private static int GetDisplayLength(string text)
@@ -667,6 +523,19 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
         return displayLength;
     }
 
+    private string Paint(string text, string code)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(code);
+
+        if (!ansiEnabled)
+        {
+            return text;
+        }
+
+        return string.Create(CultureInfo.InvariantCulture, $"\u001b[{code}m{text}\u001b[0m");
+    }
+
     private static bool IsAnsiEnabled()
     {
         string? term = Environment.GetEnvironmentVariable("TERM");
@@ -676,54 +545,6 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
         }
 
         return true;
-    }
-
-    private static int ResolveWidth()
-    {
-        try
-        {
-            return Math.Max(60, System.Console.BufferWidth - 1);
-        }
-        catch (Exception ex) when (ex is IOException or ArgumentOutOfRangeException)
-        {
-            string? columnsText = Environment.GetEnvironmentVariable("COLUMNS");
-            bool parsed = int.TryParse(
-                columnsText,
-                NumberStyles.Integer,
-                CultureInfo.InvariantCulture,
-                out int parsedColumns);
-            if (parsed && parsedColumns > 1)
-            {
-                return Math.Max(60, parsedColumns - 1);
-            }
-
-            return 80;
-        }
-    }
-
-    private static int GetCurrentCursorTop()
-    {
-        try
-        {
-            return System.Console.CursorTop;
-        }
-        catch (Exception ex) when (ex is IOException or ArgumentOutOfRangeException)
-        {
-            return 0;
-        }
-    }
-
-    private static bool TrySetCursorPosition(int left, int top)
-    {
-        try
-        {
-            System.Console.SetCursorPosition(left, top);
-            return true;
-        }
-        catch (Exception ex) when (ex is IOException or ArgumentOutOfRangeException)
-        {
-            return false;
-        }
     }
 
     private static double ClampRatio(double ratio)
@@ -776,5 +597,30 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
     private readonly record struct WorkerProgress(double AnalyzeRatio, double InsertRatio)
     {
         public static WorkerProgress Zero { get; } = new(0, 0);
+    }
+
+    private readonly record struct WorkerLineState(
+        string LeftLabel,
+        string Gauge,
+        string AnalyzePercent,
+        string InsertPercent);
+
+    private sealed class NullTextBlockProgressDisplay : ITextBlockProgressDisplay
+    {
+        public static NullTextBlockProgressDisplay Instance { get; } = new();
+
+        private NullTextBlockProgressDisplay()
+        {
+        }
+
+        public void Report(IReadOnlyList<string> lines, bool force = false)
+        {
+            _ = lines;
+            _ = force;
+        }
+
+        public void Complete()
+        {
+        }
     }
 }

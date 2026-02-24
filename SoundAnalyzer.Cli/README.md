@@ -54,6 +54,8 @@ SoundAnalyzer.Cli.exe --window-size <len> --hop <len> --input-dir <path> --db-fi
   - 単一ゲージ上で `Insert済=緑`、`Analyze済未Insert=白`、`未処理=斑点` を表示
   - 通常は Analyze が Insert より先行して伸び、Insert が追従して緑化します
   - `EstimatedTotalFrames` が取得できないSongは Analyze完了まで不確定表示（斑点中心）とし、Analyze完了後は `inserted/enqueued` でInsertドレインを表示します
+  - `name` 列幅は固定12で表示します
+  - `Songs` / `Queue` / `Thread` はゲージ開始列を共通化し、横位置を揃えて表示します
 
 ### `stft-analysis` の追加制約
 

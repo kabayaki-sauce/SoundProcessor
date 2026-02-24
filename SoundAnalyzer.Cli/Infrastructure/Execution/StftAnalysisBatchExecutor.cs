@@ -3,6 +3,7 @@ using System.Threading.Channels;
 using AudioProcessor.Application.Models;
 using AudioProcessor.Application.Ports;
 using AudioProcessor.Domain.Models;
+using Cli.Shared.Application.Ports;
 using STFTAnalyzer.Core.Application.Models;
 using STFTAnalyzer.Core.Application.Ports;
 using STFTAnalyzer.Core.Application.UseCases;
@@ -19,15 +20,18 @@ internal sealed class StftAnalysisBatchExecutor
     private readonly StftAnalysisUseCase stftAnalysisUseCase;
     private readonly IFfmpegLocator ffmpegLocator;
     private readonly IAudioProbeService audioProbeService;
+    private readonly ITextBlockProgressDisplayFactory progressDisplayFactory;
 
     public StftAnalysisBatchExecutor(
         StftAnalysisUseCase stftAnalysisUseCase,
         IFfmpegLocator ffmpegLocator,
-        IAudioProbeService audioProbeService)
+        IAudioProbeService audioProbeService,
+        ITextBlockProgressDisplayFactory progressDisplayFactory)
     {
         this.stftAnalysisUseCase = stftAnalysisUseCase ?? throw new ArgumentNullException(nameof(stftAnalysisUseCase));
         this.ffmpegLocator = ffmpegLocator ?? throw new ArgumentNullException(nameof(ffmpegLocator));
         this.audioProbeService = audioProbeService ?? throw new ArgumentNullException(nameof(audioProbeService));
+        this.progressDisplayFactory = progressDisplayFactory ?? throw new ArgumentNullException(nameof(progressDisplayFactory));
     }
 
 #pragma warning disable CA1031
@@ -50,7 +54,9 @@ internal sealed class StftAnalysisBatchExecutor
             arguments.InputDirectoryPath,
             arguments.Recursive);
 
-        using SoundAnalyzerProgressTracker progressTracker = SoundAnalyzerProgressTracker.Create(arguments.ShowProgress);
+        using SoundAnalyzerProgressTracker progressTracker = SoundAnalyzerProgressTracker.Create(
+            arguments.ShowProgress,
+            progressDisplayFactory);
         progressTracker.Configure(
             resolved.Files.Select(file => file.Name).ToArray(),
             arguments.StftFileThreads,

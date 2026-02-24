@@ -1,3 +1,4 @@
+using Cli.Shared.Application.Ports;
 using SoundAnalyzer.Cli.Infrastructure.Progress;
 
 namespace SoundAnalyzer.Cli.Tests.Infrastructure.Progress;
@@ -7,10 +8,10 @@ public sealed class SoundAnalyzerProgressTrackerTests
     [Fact]
     public void Complete_ShouldRenderMergedGauge_WithInsertAnalyzeAndPendingSegments_WhenExpectedIsKnown()
     {
-        StringWriter writer = new();
+        CapturingTextBlockProgressDisplay display = new();
         using SoundAnalyzerProgressTracker tracker = SoundAnalyzerProgressTracker.CreateForTest(
-            ansiEnabled: false,
-            writer);
+            display,
+            ansiEnabled: false);
 
         tracker.Configure(["song_001"], threadCount: 1, queueCapacity: 1024);
         tracker.SetWorkerSong(0, "song_001");
@@ -28,7 +29,7 @@ public sealed class SoundAnalyzerProgressTrackerTests
 
         tracker.Complete();
 
-        string workerLine = FindLastWorkerLine(writer.ToString());
+        string workerLine = FindLine(display.LatestLines, "T01");
         Assert.Contains("█", workerLine, StringComparison.Ordinal);
         Assert.Contains("▓", workerLine, StringComparison.Ordinal);
         Assert.Contains("░", workerLine, StringComparison.Ordinal);
@@ -39,10 +40,10 @@ public sealed class SoundAnalyzerProgressTrackerTests
     [Fact]
     public void Complete_ShouldRenderUnknownAsPending_WhenAnalyzeIsIncomplete()
     {
-        StringWriter writer = new();
+        CapturingTextBlockProgressDisplay display = new();
         using SoundAnalyzerProgressTracker tracker = SoundAnalyzerProgressTracker.CreateForTest(
-            ansiEnabled: false,
-            writer);
+            display,
+            ansiEnabled: false);
 
         tracker.Configure(["song_002"], threadCount: 1, queueCapacity: 1024);
         tracker.SetWorkerSong(0, "song_002");
@@ -60,7 +61,7 @@ public sealed class SoundAnalyzerProgressTrackerTests
 
         tracker.Complete();
 
-        string workerLine = FindLastWorkerLine(writer.ToString());
+        string workerLine = FindLine(display.LatestLines, "T01");
         Assert.DoesNotContain("█", workerLine, StringComparison.Ordinal);
         Assert.DoesNotContain("▓", workerLine, StringComparison.Ordinal);
         Assert.Contains("░", workerLine, StringComparison.Ordinal);
@@ -71,10 +72,10 @@ public sealed class SoundAnalyzerProgressTrackerTests
     [Fact]
     public void Complete_ShouldUseInsertedOverEnqueuedAfterAnalyzeComplete_WhenExpectedIsUnknown()
     {
-        StringWriter writer = new();
+        CapturingTextBlockProgressDisplay display = new();
         using SoundAnalyzerProgressTracker tracker = SoundAnalyzerProgressTracker.CreateForTest(
-            ansiEnabled: false,
-            writer);
+            display,
+            ansiEnabled: false);
 
         tracker.Configure(["song_003"], threadCount: 1, queueCapacity: 1024);
         tracker.SetWorkerSong(0, "song_003");
@@ -93,7 +94,7 @@ public sealed class SoundAnalyzerProgressTrackerTests
         tracker.MarkWorkerAnalyzeCompleted(0);
         tracker.Complete();
 
-        string workerLine = FindLastWorkerLine(writer.ToString());
+        string workerLine = FindLine(display.LatestLines, "T01");
         Assert.Contains("█", workerLine, StringComparison.Ordinal);
         Assert.Contains("▓", workerLine, StringComparison.Ordinal);
         Assert.DoesNotContain("░", workerLine, StringComparison.Ordinal);
@@ -104,10 +105,10 @@ public sealed class SoundAnalyzerProgressTrackerTests
     [Fact]
     public void Complete_ShouldRenderAllGreen_WhenAnalyzeAndInsertAreComplete()
     {
-        StringWriter writer = new();
+        CapturingTextBlockProgressDisplay display = new();
         using SoundAnalyzerProgressTracker tracker = SoundAnalyzerProgressTracker.CreateForTest(
-            ansiEnabled: false,
-            writer);
+            display,
+            ansiEnabled: false);
 
         tracker.Configure(["song_004"], threadCount: 1, queueCapacity: 1024);
         tracker.SetWorkerSong(0, "song_004");
@@ -122,7 +123,7 @@ public sealed class SoundAnalyzerProgressTrackerTests
         tracker.MarkWorkerAnalyzeCompleted(0);
         tracker.Complete();
 
-        string workerLine = FindLastWorkerLine(writer.ToString());
+        string workerLine = FindLine(display.LatestLines, "T01");
         Assert.Contains("█", workerLine, StringComparison.Ordinal);
         Assert.DoesNotContain("▓", workerLine, StringComparison.Ordinal);
         Assert.DoesNotContain("░", workerLine, StringComparison.Ordinal);
@@ -130,17 +131,75 @@ public sealed class SoundAnalyzerProgressTrackerTests
         Assert.Contains("I 100.0%", workerLine, StringComparison.Ordinal);
     }
 
-    private static string FindLastWorkerLine(string allText)
+    [Fact]
+    public void Complete_ShouldAlignGaugeStartColumns_ForSongsQueueAndThread()
     {
-        string[] lines = allText.Split(Environment.NewLine, StringSplitOptions.None);
-        for (int index = lines.Length - 1; index >= 0; index--)
+        CapturingTextBlockProgressDisplay display = new();
+        using SoundAnalyzerProgressTracker tracker = SoundAnalyzerProgressTracker.CreateForTest(
+            display,
+            ansiEnabled: false);
+
+        tracker.Configure(["long_song_name"], threadCount: 1, queueCapacity: 256);
+        tracker.SetWorkerSong(0, "long_song_name");
+        tracker.SetSongExpectedPoints("long_song_name", expectedPoints: 100);
+        tracker.IncrementEnqueued("long_song_name");
+        tracker.Complete();
+
+        string songsLine = FindLine(display.LatestLines, "Songs ");
+        string queueLine = FindLine(display.LatestLines, "Queue ");
+        string workerLine = FindLine(display.LatestLines, "T01");
+
+        int songsGaugeStart = songsLine.IndexOf('|', StringComparison.Ordinal);
+        int queueGaugeStart = queueLine.IndexOf('|', StringComparison.Ordinal);
+        int workerGaugeStart = workerLine.IndexOf('|', StringComparison.Ordinal);
+
+        Assert.Equal(songsGaugeStart, queueGaugeStart);
+        Assert.Equal(songsGaugeStart, workerGaugeStart);
+    }
+
+    [Fact]
+    public void Complete_ShouldUseFixedNameColumnWidth()
+    {
+        CapturingTextBlockProgressDisplay display = new();
+        using SoundAnalyzerProgressTracker tracker = SoundAnalyzerProgressTracker.CreateForTest(
+            display,
+            ansiEnabled: false);
+
+        tracker.Configure(["abcdefghijklmnop"], threadCount: 1, queueCapacity: 256);
+        tracker.SetWorkerSong(0, "abcdefghijklmnop");
+        tracker.SetSongExpectedPoints("abcdefghijklmnop", expectedPoints: 100);
+        tracker.Complete();
+
+        string workerLine = FindLine(display.LatestLines, "T01");
+        Assert.Contains("abcdefghijkl", workerLine, StringComparison.Ordinal);
+        Assert.DoesNotContain("abcdefghijklmnop", workerLine, StringComparison.Ordinal);
+    }
+
+    private static string FindLine(IReadOnlyList<string> lines, string prefix)
+    {
+        for (int i = 0; i < lines.Count; i++)
         {
-            if (lines[index].Contains("T01", StringComparison.Ordinal))
+            if (lines[i].Contains(prefix, StringComparison.Ordinal))
             {
-                return lines[index];
+                return lines[i];
             }
         }
 
         return string.Empty;
+    }
+
+    private sealed class CapturingTextBlockProgressDisplay : ITextBlockProgressDisplay
+    {
+        public IReadOnlyList<string> LatestLines { get; private set; } = Array.Empty<string>();
+
+        public void Report(IReadOnlyList<string> lines, bool force = false)
+        {
+            _ = force;
+            LatestLines = lines.ToArray();
+        }
+
+        public void Complete()
+        {
+        }
     }
 }

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AudioProcessor.Application.Errors;
+using Cli.Shared.Extensions;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -121,6 +122,7 @@ internal static class Entry
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
 
+        builder.Services.AddCliShared();
         builder.Services.AddPeakAnalyzerCore();
         builder.Services.AddStftAnalyzerCore();
         builder.Services.AddSingleton<PeakAnalysisBatchExecutor>();

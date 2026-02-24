@@ -10,16 +10,18 @@ internal sealed class DualLineProgressDisplay : IProgressDisplay
     private static readonly TimeSpan MinRenderInterval = TimeSpan.FromMilliseconds(80);
 
     private readonly object sync = new();
-    private readonly TextWriter writer;
-
-    private int originTop = -1;
-    private int renderedLineCount;
+    private readonly ProgressBlockRenderer renderer;
     private DateTimeOffset lastRenderAt;
     private DualProgressState? latestState;
 
     public DualLineProgressDisplay(TextWriter writer)
+        : this(writer, CursorControlMode.Disabled)
     {
-        this.writer = writer ?? throw new ArgumentNullException(nameof(writer));
+    }
+
+    internal DualLineProgressDisplay(TextWriter writer, CursorControlMode cursorControlMode)
+    {
+        renderer = new ProgressBlockRenderer(writer ?? throw new ArgumentNullException(nameof(writer)), cursorControlMode);
     }
 
     public void Report(DualProgressState state)
@@ -48,10 +50,7 @@ internal sealed class DualLineProgressDisplay : IProgressDisplay
                 RenderCore(latestState.Value);
             }
 
-            if (renderedLineCount > 0 && originTop >= 0)
-            {
-                TrySetCursorPosition(0, originTop + renderedLineCount);
-            }
+            renderer.Complete();
         }
     }
 
@@ -59,36 +58,7 @@ internal sealed class DualLineProgressDisplay : IProgressDisplay
     {
         string topLine = BuildLine(state.TopLabel, state.TopRatio);
         string bottomLine = BuildLine(state.BottomLabel, state.BottomRatio);
-
-        if (originTop < 0)
-        {
-            originTop = GetCurrentCursorTop();
-        }
-        else
-        {
-            TrySetCursorPosition(0, originTop);
-        }
-
-        int width = ResolveWidth();
-        WriteLineFixed(topLine, width);
-        WriteLineFixed(bottomLine, width);
-        renderedLineCount = 2;
-    }
-
-    private void WriteLineFixed(string text, int width)
-    {
-        string safeText = text.Length <= width
-            ? text
-            : text[..width];
-
-        writer.Write(safeText);
-        if (width > safeText.Length)
-        {
-            writer.Write(new string(' ', width - safeText.Length));
-        }
-
-        writer.WriteLine();
-        writer.Flush();
+        renderer.Render([topLine, bottomLine]);
     }
 
     private static string BuildLine(string label, double ratio)
@@ -138,39 +108,4 @@ internal sealed class DualLineProgressDisplay : IProgressDisplay
         return ratio;
     }
 
-    private static int ResolveWidth()
-    {
-        try
-        {
-            return Math.Max(40, System.Console.BufferWidth - 1);
-        }
-        catch (Exception ex) when (ex is IOException or ArgumentOutOfRangeException)
-        {
-            return 120;
-        }
-    }
-
-    private static int GetCurrentCursorTop()
-    {
-        try
-        {
-            return System.Console.CursorTop;
-        }
-        catch (Exception ex) when (ex is IOException or ArgumentOutOfRangeException)
-        {
-            return 0;
-        }
-    }
-
-    private void TrySetCursorPosition(int left, int top)
-    {
-        try
-        {
-            System.Console.SetCursorPosition(left, top);
-        }
-        catch (Exception ex) when (ex is IOException or ArgumentOutOfRangeException)
-        {
-            originTop = GetCurrentCursorTop();
-        }
-    }
 }

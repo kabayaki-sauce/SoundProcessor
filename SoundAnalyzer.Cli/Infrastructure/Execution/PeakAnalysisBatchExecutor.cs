@@ -3,6 +3,7 @@ using System.Threading.Channels;
 using AudioProcessor.Application.Models;
 using AudioProcessor.Application.Ports;
 using AudioProcessor.Domain.Models;
+using Cli.Shared.Application.Ports;
 using PeakAnalyzer.Core.Application.Models;
 using PeakAnalyzer.Core.Application.Ports;
 using PeakAnalyzer.Core.Application.UseCases;
@@ -19,15 +20,18 @@ internal sealed class PeakAnalysisBatchExecutor
     private readonly PeakAnalysisUseCase peakAnalysisUseCase;
     private readonly IFfmpegLocator ffmpegLocator;
     private readonly IAudioProbeService audioProbeService;
+    private readonly ITextBlockProgressDisplayFactory progressDisplayFactory;
 
     public PeakAnalysisBatchExecutor(
         PeakAnalysisUseCase peakAnalysisUseCase,
         IFfmpegLocator ffmpegLocator,
-        IAudioProbeService audioProbeService)
+        IAudioProbeService audioProbeService,
+        ITextBlockProgressDisplayFactory progressDisplayFactory)
     {
         this.peakAnalysisUseCase = peakAnalysisUseCase ?? throw new ArgumentNullException(nameof(peakAnalysisUseCase));
         this.ffmpegLocator = ffmpegLocator ?? throw new ArgumentNullException(nameof(ffmpegLocator));
         this.audioProbeService = audioProbeService ?? throw new ArgumentNullException(nameof(audioProbeService));
+        this.progressDisplayFactory = progressDisplayFactory ?? throw new ArgumentNullException(nameof(progressDisplayFactory));
     }
 
 #pragma warning disable CA1031
@@ -50,7 +54,9 @@ internal sealed class PeakAnalysisBatchExecutor
         List<SongBatch> songs = BuildSongBatches(resolved.Files);
         SqliteConflictMode conflictMode = BatchExecutionSupport.ResolveConflictMode(arguments);
 
-        using SoundAnalyzerProgressTracker progressTracker = SoundAnalyzerProgressTracker.Create(arguments.ShowProgress);
+        using SoundAnalyzerProgressTracker progressTracker = SoundAnalyzerProgressTracker.Create(
+            arguments.ShowProgress,
+            progressDisplayFactory);
         progressTracker.Configure(
             songs.Select(song => song.Name).ToArray(),
             arguments.PeakFileThreads,

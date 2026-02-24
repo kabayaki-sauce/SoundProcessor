@@ -7,18 +7,21 @@
 現在の実装には、次の機能が含まれます。
 
 - `--progress` 指定時のみ有効化される 2 段プログレス表示
+- 複数行テキストブロックを上書き更新する再描画エンジン（`ITextBlockProgressDisplay`）
 - TTY 判定に基づく no-op 表示への自動フォールバック
 - `stdout` の機械可読出力を維持するための `stderr` への進捗出力
 - interactive な `pwsh/cmd` では UTF-8 を適用し、`█/░` の進捗バー表示を維持
 
-`SoundAnalyzer.Cli` の詳細進捗（`--show-progress`）は `SoundAnalyzer.Cli` 側の専用表示実装を利用します。  
-`Cli.Shared` の 2 段表示は主に `AudioSplitter.Cli` で利用されます。
+`Cli.Shared` の 2 段表示は主に `AudioSplitter.Cli` で利用されます。  
+`SoundAnalyzer.Cli` の詳細進捗（`--show-progress`）は `Cli.Shared` のテキストブロック描画エンジンを利用し、行データ生成のみを `SoundAnalyzer.Cli` 側で担います。
 
 ## 主な契約
 
 - `IProgressDisplay`
 - `IProgressDisplayFactory`
 - `DualProgressState`
+- `ITextBlockProgressDisplay`
+- `ITextBlockProgressDisplayFactory`
 
 ## DI 登録
 

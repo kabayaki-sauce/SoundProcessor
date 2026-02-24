@@ -8,7 +8,7 @@ namespace Cli.Shared.Tests.Extensions;
 public sealed class CliSharedServiceCollectionExtensionsTests
 {
     [Fact]
-    public void AddCliShared_ShouldRegisterFactoryAsSingleton()
+    public void AddCliShared_ShouldRegisterFactoriesAsSingleton()
     {
         ServiceCollection services = new();
 
@@ -17,8 +17,12 @@ public sealed class CliSharedServiceCollectionExtensionsTests
 
         IProgressDisplayFactory first = provider.GetRequiredService<IProgressDisplayFactory>();
         IProgressDisplayFactory second = provider.GetRequiredService<IProgressDisplayFactory>();
+        ITextBlockProgressDisplayFactory firstTextBlockFactory = provider.GetRequiredService<ITextBlockProgressDisplayFactory>();
+        ITextBlockProgressDisplayFactory secondTextBlockFactory = provider.GetRequiredService<ITextBlockProgressDisplayFactory>();
 
         Assert.Same(first, second);
         Assert.IsType<ProgressDisplayFactory>(first);
+        Assert.Same(firstTextBlockFactory, secondTextBlockFactory);
+        Assert.IsType<TextBlockProgressDisplayFactory>(firstTextBlockFactory);
     }
 }

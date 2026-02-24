@@ -2,35 +2,35 @@ using Cli.Shared.Application.Ports;
 
 namespace Cli.Shared.Infrastructure.Console;
 
-internal sealed class ProgressDisplayFactory : IProgressDisplayFactory
+internal sealed class TextBlockProgressDisplayFactory : ITextBlockProgressDisplayFactory
 {
     private readonly IConsoleEnvironment consoleEnvironment;
 
-    public ProgressDisplayFactory()
+    public TextBlockProgressDisplayFactory()
         : this(new ConsoleEnvironment())
     {
     }
 
-    internal ProgressDisplayFactory(IConsoleEnvironment consoleEnvironment)
+    internal TextBlockProgressDisplayFactory(IConsoleEnvironment consoleEnvironment)
     {
         this.consoleEnvironment = consoleEnvironment ?? throw new ArgumentNullException(nameof(consoleEnvironment));
     }
 
-    public IProgressDisplay Create(bool enabled)
+    public ITextBlockProgressDisplay Create(bool enabled)
     {
         if (!enabled)
         {
-            return NoOpProgressDisplay.Instance;
+            return NoOpTextBlockProgressDisplay.Instance;
         }
 
         if (consoleEnvironment.IsErrorRedirected || !consoleEnvironment.IsUserInteractive)
         {
-            return NoOpProgressDisplay.Instance;
+            return NoOpTextBlockProgressDisplay.Instance;
         }
 
         consoleEnvironment.EnsureUtf8OutputEncoding();
         CursorControlMode cursorControlMode = ResolveCursorControlMode();
-        return new DualLineProgressDisplay(consoleEnvironment.ErrorWriter, cursorControlMode);
+        return new TextBlockProgressDisplay(consoleEnvironment.ErrorWriter, cursorControlMode);
     }
 
     private static CursorControlMode ResolveCursorControlMode()
