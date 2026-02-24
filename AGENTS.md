@@ -29,7 +29,7 @@
 以下は課題解決を行うための一通りの遂行手順である
 
 1. Userから受けた指示を詳細に記述し，認識齟齬がないかをUserに確認する
-2. リポジトリ直下の主要ファイル（`AGENTS.md` / `AudioProcessor.slnx` / `AudioSplitter.Cli/AudioSplitter.Cli.csproj` / `.gitignore`）と実装ファイルを確認し，構成と記述方針を把握する
+2. リポジトリ直下の主要ファイル（`AGENTS.md` / `AudioProcessor.slnx` / `AudioProcessor/AudioProcessor.csproj` / `.gitignore`）と実装ファイルを確認し，構成と記述方針を把握する
 3. 無変更時，ビルドがPassすることを確認する
   - プロジェクトルートで`dotnet build`を実行し，`AudioProcessor.slnx`を通してビルドが完遂するか確認する
 4. Userに可能な限り詳細に仕様を確認し，実装可能なレベルまで構成をFixさせる
@@ -38,8 +38,13 @@
   - 同一層の実装や類似の実装が存在しないか，プロジェクト全体を一度落ち着いて詳細に確認して統一性が保たれているか確認する
   - プロジェクトルートで`dotnet build`を実行し，`AudioProcessor.slnx`を通してビルドが完遂するか確認する
     - **Warningも解消する必要がある**． Warningを解消する際もビルド結果と実装範囲全体の確認を怠らないこと
-      - つまり，`.editorconfig` `AudioSplitter.Cli/AudioSplitter.Cli.csproj` 及びビルド結果の詳細を合わせて確認する必要がある
-6. 実装ファイルをコミットする
+      - つまり，`.editorconfig` `AudioProcessor/AudioProcessor.csproj` 及びビルド結果の詳細を合わせて確認する必要がある
+6. ドキュメントの更新を行う
+  - 着手したプロジェクト、ソリューション全体のREADMEは高確率で変更となる
+  - サードパーティライブラリを追加した場合、ライセンス関連の記述は確実に変更となる
+  - テストプロジェクト以外の全プロジェクトにREADMEが必要
+7. 実装ファイルをコミットし、PRを作成する
+  - PR承認/マージ時、該当issueをCloseするように定義すること
 
 ### 本プロジェクト固有の実装パターン
 本プロジェクトでは，以下の要件をマストで満たす必要がある
@@ -49,14 +54,12 @@
 
 - `AudioProcessor.slnx`
   - ソリューション定義．原則このファイルをターゲットとしてビルド確認を行う
-- `AudioSplitter.Cli/AudioSplitter.Cli.csproj`
-  - コンソールアプリのビルド設定（`OutputType`, `TargetFramework` 等）
 - 実装コード（`*.cs`）
   - ツール本体ロジック
 - `.gitignore`
   - ローカル生成物やIDE生成物の除外設定
 
-上記以外に新規のプロジェクトをソリューションに含めてはならない
+上記以外のソリューションをリポジトリに含めてはならない
 適切な名前空間に適切な定義を配置し，一貫性のある整ったコーディングを心がけること
 これらは常に意識する必要がある
 
@@ -76,7 +79,7 @@
 
 - `dotnet build AudioProcessor.slnx -warnaserror` の実行結果をテキストで保存し，`build-logs/` 配下に `yyyy-MM-ddTHHmmss-*.txt` 形式で管理する
 - 必要に応じて過去に出力したビルドログを確認すること
-- Analyzer/警告対応のレビューでは `.editorconfig`（存在する場合）と `AudioSplitter.Cli/AudioSplitter.Cli.csproj` も合わせて添付する
+- Analyzer/警告対応のレビューでは `.editorconfig`（存在する場合）と `AudioProcessor/AudioProcessor.csproj` も合わせて添付する
 - 目的は「ビルド状態の再現性・可観測性」の確保であり，履歴が残らないChatToolにおいても都度ログを共有することで齟齬を無くす
 
 ##### 作業着手時の最小確認ファイル
@@ -85,7 +88,13 @@
 - docs/**
   - **必ず**すべてを熟読すること
 - AudioProcessor.slnx
-- AudioSplitter.Cli/AudioSplitter.Cli.csproj
+- AudioProcessor/AudioProcessor.csproj
+- README.md
+- CODE_OF_CONDUCT.md
+- CONTRIBUTING.md
+- SUPPORT.md
+- THIRD_PARTY_NOTICES.md
 - .gitignore
 - 実装対象の `*.cs` ファイル
+- 実装対象プロジェクトの `README.md` ファイル
 - 前回ビルドの出力ログ（直近ビルド結果を連携する必要がある場合テキストで連携）
