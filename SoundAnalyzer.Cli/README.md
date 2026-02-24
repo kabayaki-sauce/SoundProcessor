@@ -77,20 +77,24 @@ SoundAnalyzer.Cli.exe --window-size <len> --hop <len> --input-dir <path> --db-fi
 
 既定テーブル: `T_STFTAnalysis`
 
+- STFT bin は縦持ちで保存されます（1行 = 1bin）
 - `window` 列には入力指定値を保存します
 - hop が `ms/s/m` 指定のとき:
-  - 列: `idx`, `name`, `ch`, `window`, `ms`, `bin001..binNNN`, `create_at`, `modified_at`
-  - 一意制約: `(name, ch, window, ms)`
-  - インデックス: `(name)`, `(name, ch)`, `(name, ms)`, `(name, ch, ms)`
+  - 列: `idx`, `name`, `ch`, `window`, `ms`, `bin_no`, `db`, `create_at`, `modified_at`
+  - 一意制約: `(name, ch, window, ms, bin_no)`
+  - インデックス: `(name)`, `(name, ch)`, `(name, ms)`, `(name, ch, ms)`, `(name, ch, window, ms)`
 - hop が `sample/samples` 指定のとき:
-  - 列: `idx`, `name`, `ch`, `window`, `sample`, `bin001..binNNN`, `create_at`, `modified_at`
-  - 一意制約: `(name, ch, window, sample)`
-  - インデックス: `(name)`, `(name, ch)`, `(name, sample)`, `(name, ch, sample)`
+  - 列: `idx`, `name`, `ch`, `window`, `sample`, `bin_no`, `db`, `create_at`, `modified_at`
+  - 一意制約: `(name, ch, window, sample, bin_no)`
+  - インデックス: `(name)`, `(name, ch)`, `(name, sample)`, `(name, ch, sample)`, `(name, ch, window, sample)`
 
 `--delete-current` 未指定時は、既存テーブルの次を検証し不一致なら失敗します。
 
-- `binNNN` 列数と `--bin-count`
+- 既存データの `bin_no` 分布（`MAX(bin_no)` / `COUNT(DISTINCT bin_no)`）と `--bin-count`
 - hop 単位に対応するアンカー列（`ms` または `sample`）
+
+旧 wide 形式（`bin001..binNNN` 列）の STFT テーブルを検知した場合は互換実行せず失敗します。  
+その場合は `--delete-current` で再作成するか、`--table-name-override` で新規テーブルを指定してください。
 
 ## 音声処理の扱い
 

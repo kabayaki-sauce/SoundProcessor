@@ -8,7 +8,7 @@ namespace SoundAnalyzer.Cli.Tests.Infrastructure.Sqlite;
 public sealed class SqliteStftAnalysisStoreTests
 {
     [Fact]
-    public void Initialize_ShouldCreateTableWithMsAnchor_WhenAnchorColumnIsMs()
+    public void Initialize_ShouldCreateNormalizedTableWithMsAnchor_WhenAnchorColumnIsMs()
     {
         string dbFilePath = CreateTempDbPath();
         try
@@ -29,7 +29,9 @@ public sealed class SqliteStftAnalysisStoreTests
             Assert.True(TableExists(dbFilePath, "T_STFTAnalysis"));
             Assert.True(ColumnExists(dbFilePath, "T_STFTAnalysis", "ms"));
             Assert.False(ColumnExists(dbFilePath, "T_STFTAnalysis", "sample"));
-            Assert.Equal(12, CountBinColumns(dbFilePath));
+            Assert.True(ColumnExists(dbFilePath, "T_STFTAnalysis", "bin_no"));
+            Assert.True(ColumnExists(dbFilePath, "T_STFTAnalysis", "db"));
+            Assert.Equal(0, CountLegacyWideBinColumns(dbFilePath));
         }
         finally
         {
@@ -38,7 +40,7 @@ public sealed class SqliteStftAnalysisStoreTests
     }
 
     [Fact]
-    public void Initialize_ShouldCreateTableWithSampleAnchor_WhenAnchorColumnIsSample()
+    public void Initialize_ShouldCreateNormalizedTableWithSampleAnchor_WhenAnchorColumnIsSample()
     {
         string dbFilePath = CreateTempDbPath();
         try
@@ -57,6 +59,9 @@ public sealed class SqliteStftAnalysisStoreTests
 
             Assert.True(ColumnExists(dbFilePath, "T_STFTAnalysis", "sample"));
             Assert.False(ColumnExists(dbFilePath, "T_STFTAnalysis", "ms"));
+            Assert.True(ColumnExists(dbFilePath, "T_STFTAnalysis", "bin_no"));
+            Assert.True(ColumnExists(dbFilePath, "T_STFTAnalysis", "db"));
+            Assert.Equal(0, CountLegacyWideBinColumns(dbFilePath));
         }
         finally
         {
@@ -65,7 +70,7 @@ public sealed class SqliteStftAnalysisStoreTests
     }
 
     [Fact]
-    public void Initialize_ShouldFail_WhenExistingTableBinCountDiffers()
+    public void Initialize_ShouldFail_WhenExistingTableBinCountDiffers_WithExistingRows()
     {
         string dbFilePath = CreateTempDbPath();
         try
@@ -79,6 +84,7 @@ public sealed class SqliteStftAnalysisStoreTests
                        deleteCurrent: false))
             {
                 first.Initialize();
+                first.Write(new StftAnalysisPoint("Song", 0, 50, 10, CreateBins(8, -12)));
                 first.Complete();
             }
 
@@ -127,6 +133,33 @@ public sealed class SqliteStftAnalysisStoreTests
 
             CliException exception = Assert.Throws<CliException>(() => second.Initialize());
             Assert.Equal(CliErrorCode.StftTableSchemaMismatch, exception.ErrorCode);
+        }
+        finally
+        {
+            DeleteIfExists(dbFilePath);
+        }
+    }
+
+    [Fact]
+    public void Initialize_ShouldFail_WhenLegacyWideSchemaDetected()
+    {
+        string dbFilePath = CreateTempDbPath();
+        try
+        {
+            CreateLegacyWideStftTable(dbFilePath);
+
+            using SqliteStftAnalysisStore store = new(
+                dbFilePath,
+                "T_STFTAnalysis",
+                "ms",
+                SqliteConflictMode.Error,
+                binCount: 2,
+                deleteCurrent: false);
+
+            CliException exception = Assert.Throws<CliException>(() => store.Initialize());
+            Assert.Equal(CliErrorCode.StftTableSchemaMismatch, exception.ErrorCode);
+            Assert.Contains("legacy-wide-schema", exception.Detail, StringComparison.Ordinal);
+            Assert.Contains("--delete-current", exception.Detail, StringComparison.Ordinal);
         }
         finally
         {
@@ -191,8 +224,10 @@ public sealed class SqliteStftAnalysisStoreTests
                 second.Complete();
             }
 
-            Assert.Equal(12, CountBinColumns(dbFilePath));
             Assert.True(ColumnExists(dbFilePath, "T_STFTAnalysis", "sample"));
+            Assert.True(ColumnExists(dbFilePath, "T_STFTAnalysis", "bin_no"));
+            Assert.True(ColumnExists(dbFilePath, "T_STFTAnalysis", "db"));
+            Assert.Equal(0, CountLegacyWideBinColumns(dbFilePath));
         }
         finally
         {
@@ -221,7 +256,7 @@ public sealed class SqliteStftAnalysisStoreTests
                 store.Complete();
             }
 
-            (long createAtBefore, long modifiedAtBefore, double bin001Before) = ReadSingleRow(dbFilePath, "ms", 10);
+            (long createAtBefore, long modifiedAtBefore, double dbBefore) = ReadSingleBinRow(dbFilePath, "ms", 10, 1);
             _ = SpinWait.SpinUntil(
                 () => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() > modifiedAtBefore,
                 TimeSpan.FromMilliseconds(200));
@@ -240,13 +275,13 @@ public sealed class SqliteStftAnalysisStoreTests
                 store.Complete();
             }
 
-            (long createAtAfter, long modifiedAtAfter, double bin001After) = ReadSingleRow(dbFilePath, "ms", 10);
+            (long createAtAfter, long modifiedAtAfter, double dbAfter) = ReadSingleBinRow(dbFilePath, "ms", 10, 1);
 
             Assert.Equal(createAtBefore, createAtAfter);
             Assert.True(modifiedAtAfter >= modifiedAtBefore);
-            Assert.NotEqual(bin001Before, bin001After);
-            Assert.Equal(-3, bin001After, precision: 6);
-            Assert.Equal(1, ReadRowCount(dbFilePath));
+            Assert.NotEqual(dbBefore, dbAfter);
+            Assert.Equal(-3, dbAfter, precision: 6);
+            Assert.Equal(4, ReadRowCount(dbFilePath));
         }
         finally
         {
@@ -276,12 +311,66 @@ public sealed class SqliteStftAnalysisStoreTests
                 store.Complete();
             }
 
-            Assert.Equal(1, ReadRowCount(dbFilePath));
+            Assert.Equal(4, ReadRowCount(dbFilePath));
         }
         finally
         {
             DeleteIfExists(dbFilePath);
         }
+    }
+
+    [Fact]
+    public void Write_ShouldSupportHighBinCount_Over2000()
+    {
+        string dbFilePath = CreateTempDbPath();
+        const int binCount = 3000;
+
+        try
+        {
+            StftAnalysisPoint point = new("Song", 0, 4096, 1024, CreateBins(binCount, -6));
+
+            using (SqliteStftAnalysisStore store = new(
+                       dbFilePath,
+                       "T_STFTAnalysis",
+                       "sample",
+                       SqliteConflictMode.Error,
+                       binCount: binCount,
+                       deleteCurrent: false))
+            {
+                store.Initialize();
+                store.Write(point);
+                store.Complete();
+            }
+
+            Assert.Equal(binCount, ReadRowCount(dbFilePath));
+            Assert.Equal(binCount, ReadMaxBinNo(dbFilePath));
+        }
+        finally
+        {
+            DeleteIfExists(dbFilePath);
+        }
+    }
+
+    private static void CreateLegacyWideStftTable(string dbFilePath)
+    {
+        using SqliteConnection connection = OpenConnection(dbFilePath);
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText =
+            $"""
+            CREATE TABLE "T_STFTAnalysis" (
+              "idx" INTEGER PRIMARY KEY AUTOINCREMENT,
+              "name" TEXT NOT NULL,
+              "ch" INTEGER NOT NULL,
+              "window" INTEGER NOT NULL,
+              "ms" INTEGER NOT NULL,
+              "bin001" REAL NOT NULL,
+              "bin002" REAL NOT NULL,
+              "create_at" INTEGER NOT NULL,
+              "modified_at" INTEGER NOT NULL,
+              UNIQUE("name", "ch", "window", "ms")
+            );
+            """;
+        _ = command.ExecuteNonQuery();
     }
 
     private static double[] CreateBins(int count, double value)
@@ -331,7 +420,7 @@ public sealed class SqliteStftAnalysisStoreTests
         return scalar is long count && count > 0;
     }
 
-    private static int CountBinColumns(string dbFilePath)
+    private static int CountLegacyWideBinColumns(string dbFilePath)
     {
         using SqliteConnection connection = OpenConnection(dbFilePath);
         using SqliteCommand command = connection.CreateCommand();
@@ -342,7 +431,10 @@ public sealed class SqliteStftAnalysisStoreTests
         while (reader.Read())
         {
             string name = reader.GetString(1);
-            if (name.StartsWith("bin", StringComparison.OrdinalIgnoreCase))
+            if (name.StartsWith("bin", StringComparison.OrdinalIgnoreCase)
+                && !name.Equals("bin_no", StringComparison.OrdinalIgnoreCase)
+                && name.Length == 6
+                && name[3..].All(char.IsAsciiDigit))
             {
                 count++;
             }
@@ -351,52 +443,38 @@ public sealed class SqliteStftAnalysisStoreTests
         return count;
     }
 
-    private static (long CreateAt, long ModifiedAt, double Bin001) ReadSingleRow(
+#pragma warning disable CA2100
+    private static (long CreateAt, long ModifiedAt, double Db) ReadSingleBinRow(
         string dbFilePath,
         string anchorColumnName,
-        long anchorValue)
-    {
-        return anchorColumnName.Equals("sample", StringComparison.OrdinalIgnoreCase)
-            ? ReadSingleRowBySampleAnchor(dbFilePath, anchorValue)
-            : ReadSingleRowByMsAnchor(dbFilePath, anchorValue);
-    }
-
-    private static (long CreateAt, long ModifiedAt, double Bin001) ReadSingleRowByMsAnchor(
-        string dbFilePath,
-        long anchorValue)
+        long anchorValue,
+        int binNo)
     {
         using SqliteConnection connection = OpenConnection(dbFilePath);
         using SqliteCommand command = connection.CreateCommand();
-        command.CommandText =
-            "SELECT create_at, modified_at, bin001 FROM \"T_STFTAnalysis\" WHERE name = 'Song' AND ch = 0 AND window = 50 AND ms = $anchor;";
+        command.CommandText = anchorColumnName.Equals("sample", StringComparison.OrdinalIgnoreCase)
+            ? "SELECT create_at, modified_at, db FROM \"T_STFTAnalysis\" WHERE name = 'Song' AND ch = 0 AND window = 50 AND sample = $anchor AND bin_no = $bin_no;"
+            : "SELECT create_at, modified_at, db FROM \"T_STFTAnalysis\" WHERE name = 'Song' AND ch = 0 AND window = 50 AND ms = $anchor AND bin_no = $bin_no;";
         _ = command.Parameters.AddWithValue("$anchor", anchorValue);
+        _ = command.Parameters.AddWithValue("$bin_no", binNo);
 
         using SqliteDataReader reader = command.ExecuteReader();
         Assert.True(reader.Read());
 
         long createAt = reader.GetInt64(0);
         long modifiedAt = reader.GetInt64(1);
-        double bin001 = reader.GetDouble(2);
-        return (createAt, modifiedAt, bin001);
+        double db = reader.GetDouble(2);
+        return (createAt, modifiedAt, db);
     }
+#pragma warning restore CA2100
 
-    private static (long CreateAt, long ModifiedAt, double Bin001) ReadSingleRowBySampleAnchor(
-        string dbFilePath,
-        long anchorValue)
+    private static int ReadMaxBinNo(string dbFilePath)
     {
         using SqliteConnection connection = OpenConnection(dbFilePath);
         using SqliteCommand command = connection.CreateCommand();
-        command.CommandText =
-            "SELECT create_at, modified_at, bin001 FROM \"T_STFTAnalysis\" WHERE name = 'Song' AND ch = 0 AND window = 50 AND sample = $anchor;";
-        _ = command.Parameters.AddWithValue("$anchor", anchorValue);
-
-        using SqliteDataReader reader = command.ExecuteReader();
-        Assert.True(reader.Read());
-
-        long createAt = reader.GetInt64(0);
-        long modifiedAt = reader.GetInt64(1);
-        double bin001 = reader.GetDouble(2);
-        return (createAt, modifiedAt, bin001);
+        command.CommandText = "SELECT COALESCE(MAX(bin_no), 0) FROM \"T_STFTAnalysis\";";
+        object? scalar = command.ExecuteScalar();
+        return scalar is long value ? checked((int)value) : 0;
     }
 
     private static long ReadRowCount(string dbFilePath)

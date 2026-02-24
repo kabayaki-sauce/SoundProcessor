@@ -69,27 +69,37 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
         else if (TableExists(connection, transaction, tableName))
         {
             ExistingTableSchema schema = ReadExistingTableSchema(connection, transaction, tableName);
-            if (schema.BinCount != binCount)
+            if (schema.ContainsLegacyWideColumns)
             {
                 string detail = string.Create(
                     CultureInfo.InvariantCulture,
-                    $"table={tableName}, expected={binCount}, actual={schema.BinCount}");
-                throw new CliException(CliErrorCode.StftTableBinCountMismatch, detail);
+                    $"table={tableName}, reason=legacy-wide-schema, action=use --delete-current or another table name");
+                throw new CliException(CliErrorCode.StftTableSchemaMismatch, detail);
             }
 
-            if (!schema.HasExpectedAnchorOnly(anchorColumnName))
+            if (!schema.HasExpectedNormalizedColumns(anchorColumnName))
             {
                 string detail = string.Create(
                     CultureInfo.InvariantCulture,
                     $"table={tableName}, expected-anchor={anchorColumnName}, actual-columns={string.Join(',', schema.Columns)}");
                 throw new CliException(CliErrorCode.StftTableSchemaMismatch, detail);
             }
+
+            BinCoverage coverage = ReadBinCoverage(connection, transaction, tableName);
+            if (coverage.RowCount > 0
+                && (coverage.MaxBinNo != binCount || coverage.DistinctBinCount != binCount))
+            {
+                string detail = string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"table={tableName}, expected={binCount}, actual-max={coverage.MaxBinNo}, actual-distinct={coverage.DistinctBinCount}");
+                throw new CliException(CliErrorCode.StftTableBinCountMismatch, detail);
+            }
         }
 
-        CreateTableIfNeeded(connection, transaction, tableName, anchorColumnName, binCount);
+        CreateTableIfNeeded(connection, transaction, tableName, anchorColumnName);
         CreateIndexesIfNeeded(connection, transaction, tableName, anchorColumnName);
 
-        insertCommand = BuildInsertCommand(connection, transaction, tableName, anchorColumnName, conflictMode, binCount);
+        insertCommand = BuildInsertCommand(connection, transaction, tableName, anchorColumnName, conflictMode);
     }
 
     public void Write(StftAnalysisPoint point)
@@ -110,17 +120,15 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
         command.Parameters["$ch"].Value = point.Channel;
         command.Parameters["$window"].Value = point.Window;
         command.Parameters["$anchor"].Value = point.Anchor;
-
-        for (int i = 0; i < binCount; i++)
-        {
-            string parameterName = GetBinParameterName(i + 1);
-            command.Parameters[parameterName].Value = point.Bins[i];
-        }
-
         command.Parameters["$createAt"].Value = nowMs;
         command.Parameters["$modifiedAt"].Value = nowMs;
 
-        _ = command.ExecuteNonQuery();
+        for (int i = 0; i < binCount; i++)
+        {
+            command.Parameters["$binNo"].Value = i + 1;
+            command.Parameters["$db"].Value = point.Bins[i];
+            _ = command.ExecuteNonQuery();
+        }
     }
 
     public void Complete()
@@ -174,8 +182,7 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
 
         using SqliteCommand command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText =
-            "SELECT COUNT(1) FROM sqlite_master WHERE type = 'table' AND name = $name;";
+        command.CommandText = "SELECT COUNT(1) FROM sqlite_master WHERE type = 'table' AND name = $name;";
         _ = command.Parameters.AddWithValue("$name", tableName);
 
         object? scalar = command.ExecuteScalar();
@@ -198,45 +205,55 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
             $"PRAGMA table_info({QuoteIdentifier(tableName)});");
 
         List<string> columns = new();
-        int binCount = 0;
         using SqliteDataReader reader = command.ExecuteReader();
         while (reader.Read())
         {
-            string columnName = reader.GetString(1);
-            columns.Add(columnName);
-            if (columnName.StartsWith("bin", StringComparison.OrdinalIgnoreCase))
-            {
-                binCount++;
-            }
+            columns.Add(reader.GetString(1));
         }
 
-        return new ExistingTableSchema(columns, binCount);
+        return new ExistingTableSchema(columns);
+    }
+
+    private static BinCoverage ReadBinCoverage(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string tableName)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transaction);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+
+        using SqliteCommand command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = string.Create(
+            CultureInfo.InvariantCulture,
+            $"SELECT COALESCE(MAX(\"bin_no\"), 0), COUNT(DISTINCT \"bin_no\"), COUNT(1) FROM {QuoteIdentifier(tableName)};");
+
+        using SqliteDataReader reader = command.ExecuteReader();
+        if (!reader.Read())
+        {
+            return BinCoverage.Empty;
+        }
+
+        int maxBinNo = checked((int)reader.GetInt64(0));
+        int distinctBinCount = checked((int)reader.GetInt64(1));
+        long rowCount = reader.GetInt64(2);
+        return new BinCoverage(maxBinNo, distinctBinCount, rowCount);
     }
 
     private static void CreateTableIfNeeded(
         SqliteConnection connection,
         SqliteTransaction transaction,
         string tableName,
-        string anchorColumnName,
-        int binCount)
+        string anchorColumnName)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(anchorColumnName);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(binCount);
 
         string quotedTable = QuoteIdentifier(tableName);
         string quotedAnchorColumn = QuoteIdentifier(anchorColumnName);
-
-        string[] binColumns = new string[binCount];
-        for (int i = 0; i < binCount; i++)
-        {
-            string columnName = QuoteIdentifier(GetBinColumnName(i + 1));
-            binColumns[i] = string.Create(CultureInfo.InvariantCulture, $"{columnName} REAL NOT NULL");
-        }
-
-        string joinedBinColumns = string.Join(",\n  ", binColumns);
 
         string sql = string.Create(
             CultureInfo.InvariantCulture,
@@ -247,10 +264,11 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
               "ch" INTEGER NOT NULL,
               "window" INTEGER NOT NULL,
               {quotedAnchorColumn} INTEGER NOT NULL,
-              {joinedBinColumns},
+              "bin_no" INTEGER NOT NULL,
+              "db" REAL NOT NULL,
               "create_at" INTEGER NOT NULL,
               "modified_at" INTEGER NOT NULL,
-              UNIQUE("name", "ch", "window", {quotedAnchorColumn})
+              UNIQUE("name", "ch", "window", {quotedAnchorColumn}, "bin_no")
             );
             """);
 
@@ -281,6 +299,7 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
             BuildIndexStatement(safePrefix, "name_ch", quotedTable, "name", "ch"),
             BuildIndexStatement(safePrefix, string.Create(CultureInfo.InvariantCulture, $"name_{anchorSuffix}"), quotedTable, "name", anchorColumnName),
             BuildIndexStatement(safePrefix, string.Create(CultureInfo.InvariantCulture, $"name_ch_{anchorSuffix}"), quotedTable, "name", "ch", anchorColumnName),
+            BuildIndexStatement(safePrefix, string.Create(CultureInfo.InvariantCulture, $"point_{anchorSuffix}"), quotedTable, "name", "ch", "window", anchorColumnName),
         };
 
         for (int i = 0; i < statements.Length; i++)
@@ -312,47 +331,23 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
         SqliteTransaction transaction,
         string tableName,
         string anchorColumnName,
-        SqliteConflictMode conflictMode,
-        int binCount)
+        SqliteConflictMode conflictMode)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(anchorColumnName);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(binCount);
 
         string quotedTable = QuoteIdentifier(tableName);
         string quotedAnchorColumn = QuoteIdentifier(anchorColumnName);
 
-        List<string> columns =
-        [
-            QuoteIdentifier("name"),
-            QuoteIdentifier("ch"),
-            QuoteIdentifier("window"),
-            quotedAnchorColumn,
-        ];
-
-        List<string> values = ["$name", "$ch", "$window", "$anchor"];
-
-        for (int i = 0; i < binCount; i++)
-        {
-            int index = i + 1;
-            columns.Add(QuoteIdentifier(GetBinColumnName(index)));
-            values.Add(GetBinParameterName(index));
-        }
-
-        columns.Add(QuoteIdentifier("create_at"));
-        columns.Add(QuoteIdentifier("modified_at"));
-        values.Add("$createAt");
-        values.Add("$modifiedAt");
-
         string insertSql = string.Create(
             CultureInfo.InvariantCulture,
-            $"INSERT INTO {quotedTable} ({string.Join(", ", columns)}) VALUES ({string.Join(", ", values)})");
+            $"INSERT INTO {quotedTable} (\"name\", \"ch\", \"window\", {quotedAnchorColumn}, \"bin_no\", \"db\", \"create_at\", \"modified_at\") VALUES ($name, $ch, $window, $anchor, $binNo, $db, $createAt, $modifiedAt)");
 
         string conflictColumns = string.Create(
             CultureInfo.InvariantCulture,
-            $"\"name\", \"ch\", \"window\", {quotedAnchorColumn}");
+            $"\"name\", \"ch\", \"window\", {quotedAnchorColumn}, \"bin_no\"");
 
         string sql = conflictMode switch
         {
@@ -360,9 +355,7 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
                 insertSql,
                 " ON CONFLICT(",
                 conflictColumns,
-                ") DO UPDATE SET ",
-                BuildUpsertSetClause(binCount),
-                ";"),
+                ") DO UPDATE SET \"db\" = excluded.\"db\", \"modified_at\" = excluded.\"modified_at\";"),
             SqliteConflictMode.SkipDuplicate => string.Concat(
                 insertSql,
                 " ON CONFLICT(",
@@ -379,44 +372,13 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
         _ = command.Parameters.Add("$ch", SqliteType.Integer);
         _ = command.Parameters.Add("$window", SqliteType.Integer);
         _ = command.Parameters.Add("$anchor", SqliteType.Integer);
-
-        for (int i = 0; i < binCount; i++)
-        {
-            _ = command.Parameters.Add(GetBinParameterName(i + 1), SqliteType.Real);
-        }
-
+        _ = command.Parameters.Add("$binNo", SqliteType.Integer);
+        _ = command.Parameters.Add("$db", SqliteType.Real);
         _ = command.Parameters.Add("$createAt", SqliteType.Integer);
         _ = command.Parameters.Add("$modifiedAt", SqliteType.Integer);
         command.Prepare();
 
         return command;
-    }
-
-    private static string BuildUpsertSetClause(int binCount)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(binCount);
-
-        List<string> assignments = new(binCount + 1);
-        for (int i = 0; i < binCount; i++)
-        {
-            string quotedColumn = QuoteIdentifier(GetBinColumnName(i + 1));
-            assignments.Add(string.Create(CultureInfo.InvariantCulture, $"{quotedColumn} = excluded.{quotedColumn}"));
-        }
-
-        assignments.Add("\"modified_at\" = excluded.\"modified_at\"");
-        return string.Join(", ", assignments);
-    }
-
-    private static string GetBinColumnName(int oneBasedIndex)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(oneBasedIndex);
-        return string.Create(CultureInfo.InvariantCulture, $"bin{oneBasedIndex:D3}");
-    }
-
-    private static string GetBinParameterName(int oneBasedIndex)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(oneBasedIndex);
-        return string.Create(CultureInfo.InvariantCulture, $"$bin{oneBasedIndex:D3}");
     }
 
     private static string BuildConnectionString(string dbFilePath)
@@ -442,38 +404,76 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisPointWriter, IDispo
 
     private sealed class ExistingTableSchema
     {
-        public ExistingTableSchema(IReadOnlyList<string> columns, int binCount)
+        public ExistingTableSchema(IReadOnlyList<string> columns)
         {
             ArgumentNullException.ThrowIfNull(columns);
-            ArgumentOutOfRangeException.ThrowIfNegative(binCount);
-
             Columns = columns;
-            BinCount = binCount;
         }
 
         public IReadOnlyList<string> Columns { get; }
 
-        public int BinCount { get; }
+        public bool ContainsLegacyWideColumns => Columns.Any(IsLegacyWideBinColumn);
 
-        public bool HasExpectedAnchorOnly(string expectedAnchorColumn)
+        public bool HasExpectedNormalizedColumns(string expectedAnchorColumn)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(expectedAnchorColumn);
 
-            bool hasMs = Columns.Any(column => column.Equals("ms", StringComparison.OrdinalIgnoreCase));
-            bool hasSample = Columns.Any(column => column.Equals("sample", StringComparison.OrdinalIgnoreCase));
+            bool hasMs = HasColumn("ms");
+            bool hasSample = HasColumn("sample");
+            bool hasExpectedAnchor = expectedAnchorColumn.Equals("ms", StringComparison.Ordinal)
+                ? hasMs && !hasSample
+                : hasSample && !hasMs;
 
-            if (expectedAnchorColumn.Equals("ms", StringComparison.Ordinal))
-            {
-                return hasMs && !hasSample;
-            }
-
-            if (expectedAnchorColumn.Equals("sample", StringComparison.Ordinal))
-            {
-                return hasSample && !hasMs;
-            }
-
-            return false;
+            return hasExpectedAnchor
+                && HasColumn("idx")
+                && HasColumn("name")
+                && HasColumn("ch")
+                && HasColumn("window")
+                && HasColumn("bin_no")
+                && HasColumn("db")
+                && HasColumn("create_at")
+                && HasColumn("modified_at")
+                && !ContainsLegacyWideColumns;
         }
+
+        private static bool IsLegacyWideBinColumn(string columnName)
+        {
+            if (!columnName.StartsWith("bin", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (columnName.Equals("bin_no", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            ReadOnlySpan<char> suffix = columnName.AsSpan(3);
+            if (suffix.Length != 3)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < suffix.Length; i++)
+            {
+                if (!char.IsAsciiDigit(suffix[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private bool HasColumn(string columnName)
+        {
+            return Columns.Any(column => column.Equals(columnName, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private readonly record struct BinCoverage(int MaxBinNo, int DistinctBinCount, long RowCount)
+    {
+        public static BinCoverage Empty { get; } = new(0, 0, 0);
     }
 }
 #pragma warning restore CA2100
