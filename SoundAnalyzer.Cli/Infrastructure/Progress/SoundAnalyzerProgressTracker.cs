@@ -5,7 +5,10 @@ namespace SoundAnalyzer.Cli.Infrastructure.Progress;
 
 internal sealed class SoundAnalyzerProgressTracker : IDisposable
 {
+    private const int SongsBarWidth = 24;
     private const int QueueBarWidth = 24;
+    private const int WorkerBarWidth = 12;
+    private const int SongLabelWidth = 24;
     private static readonly TimeSpan MinRenderInterval = TimeSpan.FromMilliseconds(80);
 
     private readonly object sync = new();
@@ -247,31 +250,22 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
     {
         long completedSongs = songs.Values.LongCount(static state => state.AnalyzeCompleted && state.Inserted >= state.Enqueued);
         long safeTotalSongs = totalSongs > 0 ? totalSongs : 1;
+        double songsRatio = ClampRatio((double)completedSongs / safeTotalSongs);
+        string songsBar = BuildProgressBar(songsRatio, SongsBarWidth, "97");
+        string songsPercent = (songsRatio * 100.0).ToString("0.0", CultureInfo.InvariantCulture);
 
         string songsLine = string.Create(
             CultureInfo.InvariantCulture,
-            $"Songs {Math.Min(completedSongs, safeTotalSongs)}/{safeTotalSongs}");
+            $"Songs {Math.Min(completedSongs, safeTotalSongs)}/{safeTotalSongs} |{songsBar}| {songsPercent,6}%");
 
         string workerCircles = string.Join(
             " ",
-            workers.Select(worker => worker.IsActive ? PaintGreen("●") : PaintGray("●")));
+            workers.Select(worker => FormatThreadCircle(worker.IsActive)));
         string threadsLine = string.Create(CultureInfo.InvariantCulture, $"Threads {workerCircles}");
 
         long queueDepth = Math.Max(0, totalEnqueued - totalInserted);
         double queueRatio = ClampRatio(queueCapacity > 0 ? (double)queueDepth / queueCapacity : 0);
-        int filled = checked((int)Math.Round(queueRatio * QueueBarWidth, MidpointRounding.AwayFromZero));
-        if (filled > QueueBarWidth)
-        {
-            filled = QueueBarWidth;
-        }
-
-        char[] queueChars = new char[QueueBarWidth];
-        for (int i = 0; i < queueChars.Length; i++)
-        {
-            queueChars[i] = i < filled ? '█' : '░';
-        }
-
-        string queueBar = new(queueChars);
+        string queueBar = BuildProgressBar(queueRatio, QueueBarWidth, "97");
         string queuePercent = (queueRatio * 100.0).ToString("0.0", CultureInfo.InvariantCulture);
         string queueLine = string.Create(
             CultureInfo.InvariantCulture,
@@ -287,49 +281,108 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
         for (int i = 0; i < workers.Length; i++)
         {
             WorkerState worker = workers[i];
-            string active = worker.IsActive ? PaintGreen("●") : PaintGray("●");
+            string active = FormatThreadCircle(worker.IsActive);
             string songLabel = string.IsNullOrWhiteSpace(worker.SongName) ? "(idle)" : worker.SongName;
-            string analyzeState = ResolveAnalyzeState(worker);
-            string insertState = ResolveInsertState(worker);
+            if (songLabel.Length > SongLabelWidth)
+            {
+                songLabel = songLabel[..SongLabelWidth];
+            }
+
+            double analyzeRatio = ResolveAnalyzeRatio(worker);
+            double insertRatio = ResolveInsertRatio(worker);
+            string analyzeBar = BuildProgressBar(analyzeRatio, WorkerBarWidth, "97");
+            string insertBar = BuildProgressBar(insertRatio, WorkerBarWidth, "32");
 
             string line = string.Create(
                 CultureInfo.InvariantCulture,
-                $"T{i + 1:00} {active} {songLabel,-32} Analyze:{analyzeState} Insert:{insertState}");
+                $"T{i + 1:00} {active} {songLabel,-24} A|{analyzeBar}| I|{insertBar}|");
             lines.Add(line);
         }
 
         return lines;
     }
 
-    private string ResolveAnalyzeState(WorkerState worker)
+    private string BuildProgressBar(double ratio, int width, string filledColorCode)
+    {
+        int filled = checked((int)Math.Round(ClampRatio(ratio) * width, MidpointRounding.AwayFromZero));
+        if (filled > width)
+        {
+            filled = width;
+        }
+
+        if (!ansiEnabled)
+        {
+            char[] chars = new char[width];
+            for (int i = 0; i < width; i++)
+            {
+                chars[i] = i < filled ? '█' : '░';
+            }
+
+            return new(chars);
+        }
+
+        StringBuilder builder = new(capacity: width + 24);
+        if (filled > 0)
+        {
+            builder.Append(Paint(new string('█', filled), filledColorCode));
+        }
+
+        if (filled < width)
+        {
+            builder.Append(Paint(new string('░', width - filled), "90"));
+        }
+
+        return builder.ToString();
+    }
+
+    private string FormatThreadCircle(bool isActive)
+    {
+        if (ansiEnabled)
+        {
+            return isActive ? PaintGreen("●") : PaintGray("●");
+        }
+
+        return isActive ? "●" : "○";
+    }
+
+    private double ResolveAnalyzeRatio(WorkerState worker)
     {
         if (string.IsNullOrWhiteSpace(worker.SongName))
         {
-            return "-";
+            return 0;
         }
 
         if (worker.AnalyzeCompleted)
         {
-            return PaintWhite("●");
+            return 1;
         }
 
-        return PaintGray("○");
+        if (songs.TryGetValue(worker.SongName, out SongState? songState) && songState.AnalyzeCompleted)
+        {
+            return 1;
+        }
+
+        return 0;
     }
 
-    private string ResolveInsertState(WorkerState worker)
+    private double ResolveInsertRatio(WorkerState worker)
     {
         if (string.IsNullOrWhiteSpace(worker.SongName))
         {
-            return "-";
+            return 0;
         }
 
         if (!songs.TryGetValue(worker.SongName, out SongState? songState))
         {
-            return PaintGray("○");
+            return 0;
         }
 
-        bool insertCompleted = songState.AnalyzeCompleted && songState.Inserted >= songState.Enqueued;
-        return insertCompleted ? PaintGreen("●") : PaintGray("○");
+        if (songState.Enqueued <= 0)
+        {
+            return songState.AnalyzeCompleted ? 1 : 0;
+        }
+
+        return ClampRatio((double)songState.Inserted / songState.Enqueued);
     }
 
     private SongState EnsureSong(string songName)
@@ -354,8 +407,6 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
 
     private string PaintGray(string text) => Paint(text, "90");
 
-    private string PaintWhite(string text) => Paint(text, "97");
-
     private string Paint(string text, string code)
     {
         ArgumentNullException.ThrowIfNull(text);
@@ -371,15 +422,42 @@ internal sealed class SoundAnalyzerProgressTracker : IDisposable
 
     private void WriteLineFixed(string text, int width)
     {
-        string safeText = text.Length <= width ? text : text[..width];
-        writer.Write(safeText);
-        if (safeText.Length < width)
+        writer.Write(text);
+        int displayLength = GetDisplayLength(text);
+        if (displayLength < width)
         {
-            writer.Write(new string(' ', width - safeText.Length));
+            writer.Write(new string(' ', width - displayLength));
         }
 
         writer.WriteLine();
         writer.Flush();
+    }
+
+    private static int GetDisplayLength(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        int displayLength = 0;
+        int index = 0;
+        while (index < text.Length)
+        {
+            if (text[index] == '\u001b' && index + 1 < text.Length && text[index + 1] == '[')
+            {
+                int escapeTail = index + 2;
+                while (escapeTail < text.Length && text[escapeTail] != 'm')
+                {
+                    escapeTail++;
+                }
+
+                index = escapeTail < text.Length ? escapeTail + 1 : text.Length;
+                continue;
+            }
+
+            displayLength++;
+            index++;
+        }
+
+        return displayLength;
     }
 
     private static bool IsAnsiEnabled()
