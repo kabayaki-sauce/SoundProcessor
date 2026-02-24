@@ -43,7 +43,8 @@ dotnet test AudioProcessor.slnx
 
 ```powershell
 dotnet run --project AudioSplitter.Cli -- \
-  --input-file /path/to/input.flac \
+  --input-dir /path/to/inputdir \
+  --recursive \
   --output-dir /path/to/out \
   --level -48.0 \
   --duration 2000ms \

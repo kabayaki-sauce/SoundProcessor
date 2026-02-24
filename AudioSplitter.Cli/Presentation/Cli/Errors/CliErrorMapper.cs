@@ -1,4 +1,5 @@
 using AudioProcessor.Application.Errors;
+using AudioSplitter.Cli.Infrastructure.Execution;
 using AudioSplitter.Core.Application.Errors;
 using AudioSplitter.Cli.Presentation.Cli.Texts;
 
@@ -15,6 +16,17 @@ internal static class CliErrorMapper
             SplitAudioErrorCode.InputFileNotFound => ConsoleTexts.WithValue(ConsoleTexts.InputFileNotFoundPrefix, exception.Detail),
             SplitAudioErrorCode.OutputDirectoryCreationFailed => ConsoleTexts.WithValue(ConsoleTexts.OutputDirectoryCreationFailedPrefix, exception.Detail),
             SplitAudioErrorCode.OverwriteConflictInNonInteractive => ConsoleTexts.OverwriteConflictInNonInteractive,
+            _ => exception.Detail,
+        };
+    }
+
+    public static string ToMessage(CliException exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        return exception.ErrorCode switch
+        {
+            CliErrorCode.InputDirectoryNotFound => ConsoleTexts.WithValue(ConsoleTexts.InputDirectoryNotFoundPrefix, exception.Detail),
             _ => exception.Detail,
         };
     }
