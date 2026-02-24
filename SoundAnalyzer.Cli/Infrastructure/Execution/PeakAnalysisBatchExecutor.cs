@@ -21,17 +21,20 @@ internal sealed class PeakAnalysisBatchExecutor
     private readonly IFfmpegLocator ffmpegLocator;
     private readonly IAudioProbeService audioProbeService;
     private readonly ITextBlockProgressDisplayFactory progressDisplayFactory;
+    private readonly IAnalysisStoreFactory analysisStoreFactory;
 
     public PeakAnalysisBatchExecutor(
         PeakAnalysisUseCase peakAnalysisUseCase,
         IFfmpegLocator ffmpegLocator,
         IAudioProbeService audioProbeService,
-        ITextBlockProgressDisplayFactory progressDisplayFactory)
+        ITextBlockProgressDisplayFactory progressDisplayFactory,
+        IAnalysisStoreFactory analysisStoreFactory)
     {
         this.peakAnalysisUseCase = peakAnalysisUseCase ?? throw new ArgumentNullException(nameof(peakAnalysisUseCase));
         this.ffmpegLocator = ffmpegLocator ?? throw new ArgumentNullException(nameof(ffmpegLocator));
         this.audioProbeService = audioProbeService ?? throw new ArgumentNullException(nameof(audioProbeService));
         this.progressDisplayFactory = progressDisplayFactory ?? throw new ArgumentNullException(nameof(progressDisplayFactory));
+        this.analysisStoreFactory = analysisStoreFactory ?? throw new ArgumentNullException(nameof(analysisStoreFactory));
     }
 
 #pragma warning disable CA1031
@@ -46,14 +49,17 @@ internal sealed class PeakAnalysisBatchExecutor
             throw new CliException(CliErrorCode.InputDirectoryNotFound, arguments.InputDirectoryPath);
         }
 
-        BatchExecutionSupport.EnsureDbDirectory(arguments.DbFilePath);
+        if (arguments.StorageBackend == StorageBackend.Sqlite)
+        {
+            BatchExecutionSupport.EnsureDbDirectory(
+                arguments.DbFilePath ?? throw new CliException(CliErrorCode.DbFileRequired, "SQLite mode requires db file path."));
+        }
 
         ResolvedStemAudioFiles resolved = StemAudioFileResolver.Resolve(
             arguments.InputDirectoryPath,
             arguments.Stems);
         List<SongBatch> songs = BuildSongBatches(resolved.Files);
         SqliteConflictMode conflictMode = BatchExecutionSupport.ResolveConflictMode(arguments);
-        SqliteWriteOptions writeOptions = new(arguments.SqliteFastMode, arguments.SqliteBatchRowCount);
 
         using SoundAnalyzerProgressTracker progressTracker = SoundAnalyzerProgressTracker.Create(
             arguments.ShowProgress,
@@ -63,7 +69,7 @@ internal sealed class PeakAnalysisBatchExecutor
             arguments.PeakFileThreads,
             arguments.InsertQueueSize);
 
-        using SqlitePeakAnalysisStore store = new(arguments.DbFilePath, arguments.TableName, conflictMode, writeOptions);
+        using IPeakAnalysisStore store = analysisStoreFactory.CreatePeakStore(arguments, conflictMode);
         store.Initialize();
 
         FfmpegToolPaths? progressProbeToolPaths = null;

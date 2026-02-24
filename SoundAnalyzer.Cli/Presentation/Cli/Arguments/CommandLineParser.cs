@@ -10,6 +10,7 @@ internal static partial class CommandLineParser
     private const int DefaultFileThreads = 1;
     private const int DefaultInsertQueueSize = 1024;
     private const int DefaultSqliteBatchRowCount = 512;
+    private const int DefaultPostgresSshPort = 22;
 
     public static CommandLineParseResult Parse(IReadOnlyList<string> args)
     {
@@ -37,12 +38,26 @@ internal static partial class CommandLineParser
         string? peakFileThreadsText = null;
         string? insertQueueSizeText = null;
         string? sqliteBatchRowCountText = null;
+        string? postgresHostText = null;
+        string? postgresPortText = null;
+        string? postgresDbText = null;
+        string? postgresUserText = null;
+        string? postgresPasswordText = null;
+        string? postgresSslCertPathText = null;
+        string? postgresSslKeyPathText = null;
+        string? postgresSslRootCertPathText = null;
+        string? postgresSshHostText = null;
+        string? postgresSshPortText = null;
+        string? postgresSshUserText = null;
+        string? postgresSshPrivateKeyPathText = null;
+        string? postgresSshKnownHostsPathText = null;
         bool upsert = false;
         bool skipDuplicate = false;
         bool deleteCurrent = false;
         bool recursive = false;
         bool sqliteFastMode = false;
         bool showProgress = false;
+        bool postgres = false;
 
         List<string> errors = new();
         List<string> warnings = new();
@@ -88,6 +103,12 @@ internal static partial class CommandLineParser
             if (MatchesOption(token, ConsoleTexts.SqliteFastModeOption))
             {
                 sqliteFastMode = true;
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.PostgresOption))
+            {
+                postgres = true;
                 continue;
             }
 
@@ -261,6 +282,136 @@ internal static partial class CommandLineParser
                 continue;
             }
 
+            if (MatchesOption(token, ConsoleTexts.PostgresHostOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    postgresHostText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.PostgresPortOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    postgresPortText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.PostgresDbOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    postgresDbText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.PostgresUserOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    postgresUserText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.PostgresPasswordOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    postgresPasswordText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.PostgresSslCertPathOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    postgresSslCertPathText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.PostgresSslKeyPathOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    postgresSslKeyPathText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.PostgresSslRootCertPathOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    postgresSslRootCertPathText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.PostgresSshHostOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    postgresSshHostText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.PostgresSshPortOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    postgresSshPortText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.PostgresSshUserOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    postgresSshUserText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.PostgresSshPrivateKeyPathOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    postgresSshPrivateKeyPathText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.PostgresSshKnownHostsPathOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    postgresSshKnownHostsPathText = value;
+                }
+
+                continue;
+            }
+
             errors.Add(ConsoleTexts.WithValue(ConsoleTexts.UnknownOptionPrefix, token));
         }
 
@@ -279,14 +430,131 @@ internal static partial class CommandLineParser
             errors.Add(ConsoleTexts.WithValue(ConsoleTexts.MissingOptionPrefix, ConsoleTexts.InputDirOption));
         }
 
-        if (dbFilePath is null)
+        if (modeText is null)
+        {
+            errors.Add(ConsoleTexts.WithValue(ConsoleTexts.MissingOptionPrefix, ConsoleTexts.ModeOption));
+        }
+
+        if (!postgres && dbFilePath is null)
         {
             errors.Add(ConsoleTexts.WithValue(ConsoleTexts.MissingOptionPrefix, ConsoleTexts.DbFileOption));
         }
 
-        if (modeText is null)
+        if (postgres && dbFilePath is not null)
         {
-            errors.Add(ConsoleTexts.WithValue(ConsoleTexts.MissingOptionPrefix, ConsoleTexts.ModeOption));
+            errors.Add(ConsoleTexts.PostgresDbFileConflictText);
+        }
+
+        bool hasPostgresHost = IsSpecified(postgresHostText);
+        bool hasPostgresPort = IsSpecified(postgresPortText);
+        bool hasPostgresDb = IsSpecified(postgresDbText);
+        bool hasPostgresUser = IsSpecified(postgresUserText);
+        bool hasPostgresPassword = IsSpecified(postgresPasswordText);
+        bool hasPostgresSslCertPath = IsSpecified(postgresSslCertPathText);
+        bool hasPostgresSslKeyPath = IsSpecified(postgresSslKeyPathText);
+        bool hasPostgresSslRootPath = IsSpecified(postgresSslRootCertPathText);
+        bool hasPostgresSshHost = IsSpecified(postgresSshHostText);
+        bool hasPostgresSshPort = IsSpecified(postgresSshPortText);
+        bool hasPostgresSshUser = IsSpecified(postgresSshUserText);
+        bool hasPostgresSshPrivateKeyPath = IsSpecified(postgresSshPrivateKeyPathText);
+        bool hasPostgresSshKnownHostsPath = IsSpecified(postgresSshKnownHostsPathText);
+
+        string[] postgresOnlyOptions =
+        [
+            hasPostgresHost ? ConsoleTexts.PostgresHostOption : string.Empty,
+            hasPostgresPort ? ConsoleTexts.PostgresPortOption : string.Empty,
+            hasPostgresDb ? ConsoleTexts.PostgresDbOption : string.Empty,
+            hasPostgresUser ? ConsoleTexts.PostgresUserOption : string.Empty,
+            hasPostgresPassword ? ConsoleTexts.PostgresPasswordOption : string.Empty,
+            hasPostgresSslCertPath ? ConsoleTexts.PostgresSslCertPathOption : string.Empty,
+            hasPostgresSslKeyPath ? ConsoleTexts.PostgresSslKeyPathOption : string.Empty,
+            hasPostgresSslRootPath ? ConsoleTexts.PostgresSslRootCertPathOption : string.Empty,
+            hasPostgresSshHost ? ConsoleTexts.PostgresSshHostOption : string.Empty,
+            hasPostgresSshPort ? ConsoleTexts.PostgresSshPortOption : string.Empty,
+            hasPostgresSshUser ? ConsoleTexts.PostgresSshUserOption : string.Empty,
+            hasPostgresSshPrivateKeyPath ? ConsoleTexts.PostgresSshPrivateKeyPathOption : string.Empty,
+            hasPostgresSshKnownHostsPath ? ConsoleTexts.PostgresSshKnownHostsPathOption : string.Empty,
+        ];
+
+        if (!postgres)
+        {
+            for (int i = 0; i < postgresOnlyOptions.Length; i++)
+            {
+                if (postgresOnlyOptions[i].Length == 0)
+                {
+                    continue;
+                }
+
+                errors.Add(ConsoleTexts.WithValue(
+                    ConsoleTexts.PostgresOptionRequiresPostgresModePrefix,
+                    postgresOnlyOptions[i]));
+            }
+        }
+        else
+        {
+            if (sqliteFastMode)
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.SqliteOptionNotAllowedWithPostgresPrefix, ConsoleTexts.SqliteFastModeOption));
+            }
+
+            if (sqliteBatchRowCountText is not null)
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.SqliteOptionNotAllowedWithPostgresPrefix, ConsoleTexts.SqliteBatchRowCountOption));
+            }
+
+            if (!hasPostgresHost)
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.MissingOptionPrefix, ConsoleTexts.PostgresHostOption));
+            }
+
+            if (!hasPostgresPort)
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.MissingOptionPrefix, ConsoleTexts.PostgresPortOption));
+            }
+
+            if (!hasPostgresDb)
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.MissingOptionPrefix, ConsoleTexts.PostgresDbOption));
+            }
+
+            if (!hasPostgresUser)
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.MissingOptionPrefix, ConsoleTexts.PostgresUserOption));
+            }
+
+            if (hasPostgresSslCertPath != hasPostgresSslKeyPath)
+            {
+                errors.Add(ConsoleTexts.PostgresSslPairRequiredText);
+            }
+
+            bool hasPostgresSslPair = hasPostgresSslCertPath && hasPostgresSslKeyPath;
+            if (hasPostgresPassword && hasPostgresSslPair)
+            {
+                errors.Add(ConsoleTexts.PostgresAuthConflictText);
+            }
+
+            if (!hasPostgresPassword && !hasPostgresSslPair)
+            {
+                warnings.Add(ConsoleTexts.PostgresAuthNotProvidedWarningText);
+            }
+
+            if (hasPostgresSshHost)
+            {
+                if (!hasPostgresSshUser)
+                {
+                    errors.Add(ConsoleTexts.WithValue(ConsoleTexts.MissingOptionPrefix, ConsoleTexts.PostgresSshUserOption));
+                }
+
+                if (!hasPostgresSshPrivateKeyPath)
+                {
+                    errors.Add(ConsoleTexts.WithValue(ConsoleTexts.MissingOptionPrefix, ConsoleTexts.PostgresSshPrivateKeyPathOption));
+                }
+
+                if (!hasPostgresSshKnownHostsPath)
+                {
+                    errors.Add(ConsoleTexts.WithValue(ConsoleTexts.MissingOptionPrefix, ConsoleTexts.PostgresSshKnownHostsPathOption));
+                }
+            }
         }
 
         if (errors.Count > 0)
@@ -429,6 +697,32 @@ internal static partial class CommandLineParser
             }
         }
 
+        int? postgresPort = null;
+        if (!string.IsNullOrWhiteSpace(postgresPortText))
+        {
+            if (!TryParsePositiveInt(postgresPortText!, out int parsedPostgresPort))
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidIntegerPrefix, postgresPortText!));
+            }
+            else
+            {
+                postgresPort = parsedPostgresPort;
+            }
+        }
+
+        int? postgresSshPort = null;
+        if (!string.IsNullOrWhiteSpace(postgresSshPortText))
+        {
+            if (!TryParsePositiveInt(postgresSshPortText!, out int parsedPostgresSshPort))
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidIntegerPrefix, postgresSshPortText!));
+            }
+            else
+            {
+                postgresSshPort = parsedPostgresSshPort;
+            }
+        }
+
         bool usesSampleUnit = windowLength.IsSample || hopLength.IsSample;
 
         if (isStftMode)
@@ -528,11 +822,17 @@ internal static partial class CommandLineParser
             errors.Add(ConsoleTexts.UpsertSkipConflictText);
         }
 
+        if (postgres && hasPostgresSshHost && !postgresSshPort.HasValue)
+        {
+            postgresSshPort = DefaultPostgresSshPort;
+        }
+
         if (errors.Count > 0)
         {
             return CommandLineParseResult.Failure(errors);
         }
 
+        StorageBackend backend = postgres ? StorageBackend.Postgres : StorageBackend.Sqlite;
         string mode = isStftMode ? ConsoleTexts.StftAnalysisMode : ConsoleTexts.PeakAnalysisMode;
         CommandLineArguments arguments = new(
             windowLength.Value,
@@ -541,7 +841,8 @@ internal static partial class CommandLineParser
             hopLength.Unit,
             targetSamplingHz,
             inputDirPath!,
-            dbFilePath!,
+            backend,
+            dbFilePath,
             stems,
             mode,
             tableName,
@@ -559,7 +860,20 @@ internal static partial class CommandLineParser
             insertQueueSize,
             sqliteFastMode,
             sqliteBatchRowCount,
-            showProgress);
+            showProgress,
+            postgresHostText,
+            postgresPort,
+            postgresDbText,
+            postgresUserText,
+            postgresPasswordText,
+            postgresSslCertPathText,
+            postgresSslKeyPathText,
+            postgresSslRootCertPathText,
+            postgresSshHostText,
+            postgresSshPort,
+            postgresSshUserText,
+            postgresSshPrivateKeyPathText,
+            postgresSshKnownHostsPathText);
         return CommandLineParseResult.Success(arguments, warnings);
     }
 
@@ -712,6 +1026,11 @@ internal static partial class CommandLineParser
     private static bool MatchesOption(string token, string optionName)
     {
         return string.Equals(token, optionName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSpecified(string? optionText)
+    {
+        return !string.IsNullOrWhiteSpace(optionText);
     }
 
     private static bool IsHelp(string token)

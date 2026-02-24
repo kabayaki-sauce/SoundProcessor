@@ -1,60 +1,62 @@
 using System.Globalization;
 using System.Text;
-using Microsoft.Data.Sqlite;
-using STFTAnalyzer.Core.Application.Ports;
-using STFTAnalyzer.Core.Domain.Models;
+using Npgsql;
 using SoundAnalyzer.Cli.Infrastructure.Execution;
+using SoundAnalyzer.Cli.Infrastructure.Sqlite;
+using STFTAnalyzer.Core.Domain.Models;
 
-namespace SoundAnalyzer.Cli.Infrastructure.Sqlite;
+namespace SoundAnalyzer.Cli.Infrastructure.Postgres;
 
 #pragma warning disable CA2100
-internal sealed class SqliteStftAnalysisStore : IStftAnalysisStore
+internal sealed class PostgresStftAnalysisStore : IStftAnalysisStore
 {
     private const int InsertColumnCount = 8;
+    private const int DefaultBatchRowCount = 512;
+    private const int MaxParameterCount = 65_535;
 
-    private readonly string dbFilePath;
+    private readonly PostgresConnectionOptions connectionOptions;
+    private readonly PostgresSshOptions? sshOptions;
     private readonly string tableName;
     private readonly string anchorColumnName;
     private readonly SqliteConflictMode conflictMode;
     private readonly int binCount;
     private readonly bool deleteCurrent;
-    private readonly SqliteWriteOptions writeOptions;
 
-    private SqliteConnection? connection;
-    private SqliteTransaction? transaction;
+    private PostgresSession? session;
+    private NpgsqlConnection? connection;
+    private NpgsqlTransaction? transaction;
     private bool completed;
     private bool deferIndexCreation;
     private bool indexesCreated;
     private int effectiveBatchRowCount;
 
-    public SqliteStftAnalysisStore(
-        string dbFilePath,
+    public PostgresStftAnalysisStore(
+        PostgresConnectionOptions connectionOptions,
+        PostgresSshOptions? sshOptions,
         string tableName,
         string anchorColumnName,
         SqliteConflictMode conflictMode,
         int binCount,
-        bool deleteCurrent,
-        SqliteWriteOptions? writeOptions = null)
+        bool deleteCurrent)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(dbFilePath);
+        this.connectionOptions = connectionOptions ?? throw new ArgumentNullException(nameof(connectionOptions));
+        this.sshOptions = sshOptions;
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(anchorColumnName);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(binCount);
 
-        string normalizedAnchorColumnName = anchorColumnName.Trim().ToLowerInvariant();
-        if (!normalizedAnchorColumnName.Equals("ms", StringComparison.Ordinal)
-            && !normalizedAnchorColumnName.Equals("sample", StringComparison.Ordinal))
+        string normalizedAnchor = anchorColumnName.Trim().ToLowerInvariant();
+        if (!normalizedAnchor.Equals("ms", StringComparison.Ordinal)
+            && !normalizedAnchor.Equals("sample", StringComparison.Ordinal))
         {
             throw new ArgumentException("Anchor column must be 'ms' or 'sample'.", nameof(anchorColumnName));
         }
 
-        this.dbFilePath = dbFilePath;
         this.tableName = tableName;
-        this.anchorColumnName = normalizedAnchorColumnName;
+        this.anchorColumnName = normalizedAnchor;
         this.conflictMode = conflictMode;
         this.binCount = binCount;
         this.deleteCurrent = deleteCurrent;
-        this.writeOptions = writeOptions ?? SqliteWriteOptions.Default;
     }
 
     public void Initialize()
@@ -64,17 +66,12 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisStore
             return;
         }
 
-        connection = new SqliteConnection(BuildConnectionString(dbFilePath));
-        connection.Open();
-        _ = SqliteJournalModeConfigurator.Configure(connection, writeOptions.FastMode);
-        effectiveBatchRowCount = SqliteBatchSizeCalculator.ResolveEffectiveBatchRowCount(
-            connection,
-            writeOptions.BatchRowCount,
-            InsertColumnCount);
-
+        session = PostgresConnectionFactory.OpenSession(connectionOptions, sshOptions);
+        connection = session.Connection;
         transaction = connection.BeginTransaction();
-        bool tableExists = TableExists(connection, transaction, tableName);
+        effectiveBatchRowCount = ResolveEffectiveBatchRowCount(DefaultBatchRowCount, InsertColumnCount);
 
+        bool tableExists = TableExists(connection, transaction, tableName);
         if (deleteCurrent)
         {
             DropTableIfExists(connection, transaction, tableName);
@@ -123,16 +120,15 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisStore
     public void Write(StftAnalysisPoint point)
     {
         ArgumentNullException.ThrowIfNull(point);
-
         if (point.Bins.Count != binCount)
         {
             throw new ArgumentException("Point bin-count does not match configured bin-count.", nameof(point));
         }
 
-        SqliteConnection currentConnection = connection
-            ?? throw new InvalidOperationException("SqliteStftAnalysisStore is not initialized.");
-        SqliteTransaction currentTransaction = transaction
-            ?? throw new InvalidOperationException("SqliteStftAnalysisStore is not initialized.");
+        NpgsqlConnection currentConnection = connection
+            ?? throw new InvalidOperationException("PostgresStftAnalysisStore is not initialized.");
+        NpgsqlTransaction currentTransaction = transaction
+            ?? throw new InvalidOperationException("PostgresStftAnalysisStore is not initialized.");
 
         long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
@@ -143,7 +139,7 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisStore
             int rowCount = Math.Min(remaining, effectiveBatchRowCount);
             int startBinNo = binOffset + 1;
 
-            using SqliteCommand command = BuildInsertCommand(
+            using NpgsqlCommand command = BuildInsertCommand(
                 currentConnection,
                 currentTransaction,
                 tableName,
@@ -162,7 +158,7 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisStore
 
     public void Complete()
     {
-        SqliteTransaction? currentTransaction = transaction;
+        NpgsqlTransaction? currentTransaction = transaction;
         if (currentTransaction is null)
         {
             return;
@@ -170,8 +166,8 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisStore
 
         if (deferIndexCreation && !indexesCreated)
         {
-            SqliteConnection currentConnection = connection
-                ?? throw new InvalidOperationException("SqliteStftAnalysisStore is not initialized.");
+            NpgsqlConnection currentConnection = connection
+                ?? throw new InvalidOperationException("PostgresStftAnalysisStore is not initialized.");
             CreateIndexesIfNeeded(currentConnection, currentTransaction, tableName, anchorColumnName);
             indexesCreated = true;
         }
@@ -192,17 +188,49 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisStore
         finally
         {
             transaction?.Dispose();
-            connection?.Dispose();
+            session?.Dispose();
         }
     }
 
-    private static void DropTableIfExists(SqliteConnection connection, SqliteTransaction transaction, string tableName)
+    private static int ResolveEffectiveBatchRowCount(int requestedBatchRowCount, int columnsPerRow)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(requestedBatchRowCount);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(columnsPerRow);
+
+        int maxRows = Math.Max(1, MaxParameterCount / columnsPerRow);
+        return Math.Min(requestedBatchRowCount, maxRows);
+    }
+
+    private static bool TableExists(NpgsqlConnection connection, NpgsqlTransaction transaction, string tableName)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 
-        using SqliteCommand command = connection.CreateCommand();
+        using NpgsqlCommand command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText =
+            """
+            SELECT COUNT(1)
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relkind = 'r'
+              AND n.nspname = current_schema()
+              AND c.relname = @name;
+            """;
+        _ = command.Parameters.AddWithValue("@name", tableName);
+
+        object? scalar = command.ExecuteScalar();
+        return scalar is long count && count > 0;
+    }
+
+    private static void DropTableIfExists(NpgsqlConnection connection, NpgsqlTransaction transaction, string tableName)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transaction);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+
+        using NpgsqlCommand command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = string.Create(
             CultureInfo.InvariantCulture,
@@ -210,62 +238,49 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisStore
         _ = command.ExecuteNonQuery();
     }
 
-    private static bool TableExists(SqliteConnection connection, SqliteTransaction transaction, string tableName)
-    {
-        ArgumentNullException.ThrowIfNull(connection);
-        ArgumentNullException.ThrowIfNull(transaction);
-        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
-
-        using SqliteCommand command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText = "SELECT COUNT(1) FROM sqlite_master WHERE type = 'table' AND name = $name;";
-        _ = command.Parameters.AddWithValue("$name", tableName);
-
-        object? scalar = command.ExecuteScalar();
-        return scalar is long count && count > 0;
-    }
-
     private static ExistingTableSchema ReadExistingTableSchema(
-        SqliteConnection connection,
-        SqliteTransaction transaction,
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
         string tableName)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 
-        using SqliteCommand command = connection.CreateCommand();
+        using NpgsqlCommand command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = string.Create(
-            CultureInfo.InvariantCulture,
-            $"PRAGMA table_info({QuoteIdentifier(tableName)});");
+        command.CommandText =
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = current_schema()
+              AND table_name = @name;
+            """;
+        _ = command.Parameters.AddWithValue("@name", tableName);
 
         List<string> columns = new();
-        using SqliteDataReader reader = command.ExecuteReader();
+        using NpgsqlDataReader reader = command.ExecuteReader();
         while (reader.Read())
         {
-            columns.Add(reader.GetString(1));
+            columns.Add(reader.GetString(0));
         }
 
         return new ExistingTableSchema(columns);
     }
 
-    private static BinCoverage ReadBinCoverage(
-        SqliteConnection connection,
-        SqliteTransaction transaction,
-        string tableName)
+    private static BinCoverage ReadBinCoverage(NpgsqlConnection connection, NpgsqlTransaction transaction, string tableName)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 
-        using SqliteCommand command = connection.CreateCommand();
+        using NpgsqlCommand command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = string.Create(
             CultureInfo.InvariantCulture,
             $"SELECT COALESCE(MAX(\"bin_no\"), 0), COUNT(DISTINCT \"bin_no\"), COUNT(1) FROM {QuoteIdentifier(tableName)};");
 
-        using SqliteDataReader reader = command.ExecuteReader();
+        using NpgsqlDataReader reader = command.ExecuteReader();
         if (!reader.Read())
         {
             return BinCoverage.Empty;
@@ -278,8 +293,8 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisStore
     }
 
     private static void CreateTableIfNeeded(
-        SqliteConnection connection,
-        SqliteTransaction transaction,
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
         string tableName,
         string anchorColumnName)
     {
@@ -289,33 +304,32 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisStore
         ArgumentException.ThrowIfNullOrWhiteSpace(anchorColumnName);
 
         string quotedTable = QuoteIdentifier(tableName);
-        string quotedAnchorColumn = QuoteIdentifier(anchorColumnName);
-
+        string quotedAnchor = QuoteIdentifier(anchorColumnName);
         string sql = string.Create(
             CultureInfo.InvariantCulture,
             $"""
             CREATE TABLE IF NOT EXISTS {quotedTable} (
-              "idx" INTEGER PRIMARY KEY AUTOINCREMENT,
+              "idx" BIGSERIAL PRIMARY KEY,
               "name" TEXT NOT NULL,
               "ch" INTEGER NOT NULL,
-              "window" INTEGER NOT NULL,
-              {quotedAnchorColumn} INTEGER NOT NULL,
+              "window" BIGINT NOT NULL,
+              {quotedAnchor} BIGINT NOT NULL,
               "bin_no" INTEGER NOT NULL,
-              "db" REAL NOT NULL,
-              "create_at" INTEGER NOT NULL,
-              "modified_at" INTEGER NOT NULL
+              "db" DOUBLE PRECISION NOT NULL,
+              "create_at" BIGINT NOT NULL,
+              "modified_at" BIGINT NOT NULL
             );
             """);
 
-        using SqliteCommand command = connection.CreateCommand();
+        using NpgsqlCommand command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = sql;
         _ = command.ExecuteNonQuery();
     }
 
     private static void CreateIndexesIfNeeded(
-        SqliteConnection connection,
-        SqliteTransaction transaction,
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
         string tableName,
         string anchorColumnName)
     {
@@ -340,7 +354,7 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisStore
 
         for (int i = 0; i < statements.Length; i++)
         {
-            using SqliteCommand command = connection.CreateCommand();
+            using NpgsqlCommand command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText = statements[i];
             _ = command.ExecuteNonQuery();
@@ -383,16 +397,15 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisStore
         ArgumentNullException.ThrowIfNull(columns);
 
         string indexName = QuoteIdentifier(string.Create(CultureInfo.InvariantCulture, $"IX_{prefix}_{suffix}"));
-        string joinedColumns = string.Join(", ", columns.Select(column => QuoteIdentifier(column)));
-
+        string joinedColumns = string.Join(", ", columns.Select(QuoteIdentifier));
         return string.Create(
             CultureInfo.InvariantCulture,
             $"CREATE INDEX IF NOT EXISTS {indexName} ON {quotedTable} ({joinedColumns});");
     }
 
-    private static SqliteCommand BuildInsertCommand(
-        SqliteConnection connection,
-        SqliteTransaction transaction,
+    private static NpgsqlCommand BuildInsertCommand(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
         string tableName,
         string anchorColumnName,
         SqliteConflictMode conflictMode,
@@ -409,10 +422,7 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisStore
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(startBinNo);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(rowCount);
 
-        string quotedTable = QuoteIdentifier(tableName);
-        string quotedAnchorColumn = QuoteIdentifier(anchorColumnName);
-
-        SqliteCommand command = connection.CreateCommand();
+        NpgsqlCommand command = connection.CreateCommand();
         command.Transaction = transaction;
 
         StringBuilder valuesBuilder = new();
@@ -428,33 +438,33 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisStore
             _ = valuesBuilder.Append(
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"$name{i}, $ch{i}, $window{i}, $anchor{i}, $binNo{i}, $db{i}, $createAt{i}, $modifiedAt{i}"));
+                    $"@name{i}, @ch{i}, @window{i}, @anchor{i}, @binNo{i}, @db{i}, @createAt{i}, @modifiedAt{i}"));
             _ = valuesBuilder.Append(')');
 
-            _ = command.Parameters.AddWithValue($"$name{i}", point.Name);
-            _ = command.Parameters.AddWithValue($"$ch{i}", point.Channel);
-            _ = command.Parameters.AddWithValue($"$window{i}", point.Window);
-            _ = command.Parameters.AddWithValue($"$anchor{i}", point.Anchor);
-            _ = command.Parameters.AddWithValue($"$binNo{i}", binNo);
-            _ = command.Parameters.AddWithValue($"$db{i}", point.Bins[binNo - 1]);
-            _ = command.Parameters.AddWithValue($"$createAt{i}", nowMs);
-            _ = command.Parameters.AddWithValue($"$modifiedAt{i}", nowMs);
+            _ = command.Parameters.AddWithValue($"@name{i}", point.Name);
+            _ = command.Parameters.AddWithValue($"@ch{i}", point.Channel);
+            _ = command.Parameters.AddWithValue($"@window{i}", point.Window);
+            _ = command.Parameters.AddWithValue($"@anchor{i}", point.Anchor);
+            _ = command.Parameters.AddWithValue($"@binNo{i}", binNo);
+            _ = command.Parameters.AddWithValue($"@db{i}", point.Bins[binNo - 1]);
+            _ = command.Parameters.AddWithValue($"@createAt{i}", nowMs);
+            _ = command.Parameters.AddWithValue($"@modifiedAt{i}", nowMs);
         }
 
+        string quotedTable = QuoteIdentifier(tableName);
+        string quotedAnchor = QuoteIdentifier(anchorColumnName);
         string prefix = string.Create(
             CultureInfo.InvariantCulture,
-            $"INSERT INTO {quotedTable} (\"name\", \"ch\", \"window\", {quotedAnchorColumn}, \"bin_no\", \"db\", \"create_at\", \"modified_at\") VALUES ");
-
+            $"INSERT INTO {quotedTable} (\"name\", \"ch\", \"window\", {quotedAnchor}, \"bin_no\", \"db\", \"create_at\", \"modified_at\") VALUES ");
         string conflictColumns = string.Create(
             CultureInfo.InvariantCulture,
-            $"\"name\", \"ch\", \"window\", {quotedAnchorColumn}, \"bin_no\"");
-
+            $"\"name\", \"ch\", \"window\", {quotedAnchor}, \"bin_no\"");
         string conflictClause = conflictMode switch
         {
             SqliteConflictMode.Upsert => string.Concat(
                 " ON CONFLICT(",
                 conflictColumns,
-                ") DO UPDATE SET \"db\" = excluded.\"db\", \"modified_at\" = excluded.\"modified_at\""),
+                ") DO UPDATE SET \"db\" = EXCLUDED.\"db\", \"modified_at\" = EXCLUDED.\"modified_at\""),
             SqliteConflictMode.SkipDuplicate => string.Concat(
                 " ON CONFLICT(",
                 conflictColumns,
@@ -467,23 +477,9 @@ internal sealed class SqliteStftAnalysisStore : IStftAnalysisStore
         return command;
     }
 
-    private static string BuildConnectionString(string dbFilePath)
-    {
-        SqliteConnectionStringBuilder builder = new()
-        {
-            DataSource = dbFilePath,
-            Mode = SqliteOpenMode.ReadWriteCreate,
-            ForeignKeys = false,
-            Pooling = false,
-        };
-
-        return builder.ToString();
-    }
-
     private static string QuoteIdentifier(string identifier)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
-
         string escaped = identifier.Replace("\"", "\"\"", StringComparison.Ordinal);
         return string.Create(CultureInfo.InvariantCulture, $"\"{escaped}\"");
     }

@@ -9,7 +9,8 @@ internal sealed class CommandLineArguments
         AnalysisLengthUnit hopUnit,
         int? targetSamplingHz,
         string inputDirectoryPath,
-        string dbFilePath,
+        StorageBackend storageBackend,
+        string? dbFilePath,
         IReadOnlyList<string>? stems,
         string mode,
         string tableName,
@@ -27,12 +28,24 @@ internal sealed class CommandLineArguments
         int insertQueueSize,
         bool sqliteFastMode,
         int sqliteBatchRowCount,
-        bool showProgress)
+        bool showProgress,
+        string? postgresHost,
+        int? postgresPort,
+        string? postgresDatabase,
+        string? postgresUser,
+        string? postgresPassword,
+        string? postgresSslCertPath,
+        string? postgresSslKeyPath,
+        string? postgresSslRootCertPath,
+        string? postgresSshHost,
+        int? postgresSshPort,
+        string? postgresSshUser,
+        string? postgresSshPrivateKeyPath,
+        string? postgresSshKnownHostsPath)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(windowValue);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hopValue);
         ArgumentException.ThrowIfNullOrWhiteSpace(inputDirectoryPath);
-        ArgumentException.ThrowIfNullOrWhiteSpace(dbFilePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(mode);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(stftProcThreads);
@@ -42,9 +55,24 @@ internal sealed class CommandLineArguments
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(insertQueueSize);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sqliteBatchRowCount);
 
+        if (storageBackend == StorageBackend.Sqlite)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(dbFilePath);
+        }
+
         if (targetSamplingHz.HasValue)
         {
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(targetSamplingHz.Value);
+        }
+
+        if (postgresPort.HasValue)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(postgresPort.Value);
+        }
+
+        if (postgresSshPort.HasValue)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(postgresSshPort.Value);
         }
 
         if (double.IsNaN(minLimitDb) || double.IsInfinity(minLimitDb))
@@ -63,7 +91,8 @@ internal sealed class CommandLineArguments
         HopUnit = hopUnit;
         TargetSamplingHz = targetSamplingHz;
         InputDirectoryPath = inputDirectoryPath;
-        DbFilePath = dbFilePath;
+        StorageBackend = storageBackend;
+        DbFilePath = string.IsNullOrWhiteSpace(dbFilePath) ? null : dbFilePath.Trim();
         Stems = stems;
         Mode = mode;
         TableName = tableName;
@@ -82,6 +111,19 @@ internal sealed class CommandLineArguments
         SqliteFastMode = sqliteFastMode;
         SqliteBatchRowCount = sqliteBatchRowCount;
         ShowProgress = showProgress;
+        PostgresHost = string.IsNullOrWhiteSpace(postgresHost) ? null : postgresHost.Trim();
+        PostgresPort = postgresPort;
+        PostgresDatabase = string.IsNullOrWhiteSpace(postgresDatabase) ? null : postgresDatabase.Trim();
+        PostgresUser = string.IsNullOrWhiteSpace(postgresUser) ? null : postgresUser.Trim();
+        PostgresPassword = string.IsNullOrWhiteSpace(postgresPassword) ? null : postgresPassword;
+        PostgresSslCertPath = string.IsNullOrWhiteSpace(postgresSslCertPath) ? null : postgresSslCertPath.Trim();
+        PostgresSslKeyPath = string.IsNullOrWhiteSpace(postgresSslKeyPath) ? null : postgresSslKeyPath.Trim();
+        PostgresSslRootCertPath = string.IsNullOrWhiteSpace(postgresSslRootCertPath) ? null : postgresSslRootCertPath.Trim();
+        PostgresSshHost = string.IsNullOrWhiteSpace(postgresSshHost) ? null : postgresSshHost.Trim();
+        PostgresSshPort = postgresSshPort;
+        PostgresSshUser = string.IsNullOrWhiteSpace(postgresSshUser) ? null : postgresSshUser.Trim();
+        PostgresSshPrivateKeyPath = string.IsNullOrWhiteSpace(postgresSshPrivateKeyPath) ? null : postgresSshPrivateKeyPath.Trim();
+        PostgresSshKnownHostsPath = string.IsNullOrWhiteSpace(postgresSshKnownHostsPath) ? null : postgresSshKnownHostsPath.Trim();
     }
 
     public long WindowValue { get; }
@@ -96,7 +138,9 @@ internal sealed class CommandLineArguments
 
     public string InputDirectoryPath { get; }
 
-    public string DbFilePath { get; }
+    public StorageBackend StorageBackend { get; }
+
+    public string? DbFilePath { get; }
 
     public IReadOnlyList<string>? Stems { get; }
 
@@ -134,7 +178,35 @@ internal sealed class CommandLineArguments
 
     public bool ShowProgress { get; }
 
+    public string? PostgresHost { get; }
+
+    public int? PostgresPort { get; }
+
+    public string? PostgresDatabase { get; }
+
+    public string? PostgresUser { get; }
+
+    public string? PostgresPassword { get; }
+
+    public string? PostgresSslCertPath { get; }
+
+    public string? PostgresSslKeyPath { get; }
+
+    public string? PostgresSslRootCertPath { get; }
+
+    public string? PostgresSshHost { get; }
+
+    public int? PostgresSshPort { get; }
+
+    public string? PostgresSshUser { get; }
+
+    public string? PostgresSshPrivateKeyPath { get; }
+
+    public string? PostgresSshKnownHostsPath { get; }
+
     public bool UsesSampleUnit => WindowUnit == AnalysisLengthUnit.Sample || HopUnit == AnalysisLengthUnit.Sample;
+
+    public bool IsPostgresMode => StorageBackend == StorageBackend.Postgres;
 
     public long WindowSizeMs => WindowUnit == AnalysisLengthUnit.Millisecond
         ? WindowValue

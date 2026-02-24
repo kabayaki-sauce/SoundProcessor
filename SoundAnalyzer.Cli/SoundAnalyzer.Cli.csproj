@@ -18,6 +18,8 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="SSH.NET" />
   </ItemGroup>
 
   <ItemGroup>

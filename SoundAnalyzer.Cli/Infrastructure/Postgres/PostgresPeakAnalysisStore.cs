@@ -1,43 +1,39 @@
 using System.Globalization;
 using System.Text;
-using Microsoft.Data.Sqlite;
-using PeakAnalyzer.Core.Application.Ports;
-using PeakAnalyzer.Core.Domain.Models;
+using Npgsql;
 using SoundAnalyzer.Cli.Infrastructure.Execution;
+using SoundAnalyzer.Cli.Infrastructure.Sqlite;
 
-namespace SoundAnalyzer.Cli.Infrastructure.Sqlite;
+namespace SoundAnalyzer.Cli.Infrastructure.Postgres;
 
 #pragma warning disable CA2100
-internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
+internal sealed class PostgresPeakAnalysisStore : IPeakAnalysisStore
 {
-    private const int InsertColumnCount = 7;
-
-    private readonly string dbFilePath;
+    private const int DefaultBatchRowCount = 512;
+    private readonly PostgresConnectionOptions connectionOptions;
+    private readonly PostgresSshOptions? sshOptions;
     private readonly string tableName;
     private readonly SqliteConflictMode conflictMode;
-    private readonly SqliteWriteOptions writeOptions;
     private readonly List<PeakInsertRow> pendingRows = new();
 
-    private SqliteConnection? connection;
-    private SqliteTransaction? transaction;
+    private PostgresSession? session;
+    private NpgsqlConnection? connection;
+    private NpgsqlTransaction? transaction;
     private bool completed;
     private bool deferIndexCreation;
     private bool indexesCreated;
-    private int effectiveBatchRowCount;
 
-    public SqlitePeakAnalysisStore(
-        string dbFilePath,
+    public PostgresPeakAnalysisStore(
+        PostgresConnectionOptions connectionOptions,
+        PostgresSshOptions? sshOptions,
         string tableName,
-        SqliteConflictMode conflictMode,
-        SqliteWriteOptions? writeOptions = null)
+        SqliteConflictMode conflictMode)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(dbFilePath);
+        this.connectionOptions = connectionOptions ?? throw new ArgumentNullException(nameof(connectionOptions));
+        this.sshOptions = sshOptions;
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
-
-        this.dbFilePath = dbFilePath;
         this.tableName = tableName;
         this.conflictMode = conflictMode;
-        this.writeOptions = writeOptions ?? SqliteWriteOptions.Default;
     }
 
     public void Initialize()
@@ -47,17 +43,11 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
             return;
         }
 
-        connection = new SqliteConnection(BuildConnectionString(dbFilePath));
-        connection.Open();
-        _ = SqliteJournalModeConfigurator.Configure(connection, writeOptions.FastMode);
-        effectiveBatchRowCount = SqliteBatchSizeCalculator.ResolveEffectiveBatchRowCount(
-            connection,
-            writeOptions.BatchRowCount,
-            InsertColumnCount);
-
-        bool tableExists = TableExists(connection, tableName);
-
+        session = PostgresConnectionFactory.OpenSession(connectionOptions, sshOptions);
+        connection = session.Connection;
         transaction = connection.BeginTransaction();
+
+        bool tableExists = TableExists(connection, transaction, tableName);
         CreateTableIfNeeded(connection, transaction, tableName);
 
         deferIndexCreation = !tableExists && conflictMode == SqliteConflictMode.Error;
@@ -68,12 +58,10 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
         }
     }
 
-    public void Write(PeakAnalysisPoint point)
+    public void Write(PeakAnalyzer.Core.Domain.Models.PeakAnalysisPoint point)
     {
         ArgumentNullException.ThrowIfNull(point);
-
-        _ = connection ?? throw new InvalidOperationException("SqlitePeakAnalysisStore is not initialized.");
-        _ = transaction ?? throw new InvalidOperationException("SqlitePeakAnalysisStore is not initialized.");
+        EnsureInitialized();
 
         long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         pendingRows.Add(new PeakInsertRow(
@@ -85,7 +73,7 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
             nowMs,
             nowMs));
 
-        if (pendingRows.Count >= effectiveBatchRowCount)
+        if (pendingRows.Count >= DefaultBatchRowCount)
         {
             FlushPendingRows();
         }
@@ -93,7 +81,7 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
 
     public void Complete()
     {
-        SqliteTransaction? currentTransaction = transaction;
+        NpgsqlTransaction? currentTransaction = transaction;
         if (currentTransaction is null)
         {
             return;
@@ -103,8 +91,8 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
 
         if (deferIndexCreation && !indexesCreated)
         {
-            SqliteConnection currentConnection = connection
-                ?? throw new InvalidOperationException("SqlitePeakAnalysisStore is not initialized.");
+            NpgsqlConnection currentConnection = connection
+                ?? throw new InvalidOperationException("PostgresPeakAnalysisStore is not initialized.");
             CreateIndexesIfNeeded(currentConnection, currentTransaction, tableName);
             indexesCreated = true;
         }
@@ -125,8 +113,14 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
         finally
         {
             transaction?.Dispose();
-            connection?.Dispose();
+            session?.Dispose();
         }
+    }
+
+    private void EnsureInitialized()
+    {
+        _ = connection ?? throw new InvalidOperationException("PostgresPeakAnalysisStore is not initialized.");
+        _ = transaction ?? throw new InvalidOperationException("PostgresPeakAnalysisStore is not initialized.");
     }
 
     private void FlushPendingRows()
@@ -136,12 +130,12 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
             return;
         }
 
-        SqliteConnection currentConnection = connection
-            ?? throw new InvalidOperationException("SqlitePeakAnalysisStore is not initialized.");
-        SqliteTransaction currentTransaction = transaction
-            ?? throw new InvalidOperationException("SqlitePeakAnalysisStore is not initialized.");
+        NpgsqlConnection currentConnection = connection
+            ?? throw new InvalidOperationException("PostgresPeakAnalysisStore is not initialized.");
+        NpgsqlTransaction currentTransaction = transaction
+            ?? throw new InvalidOperationException("PostgresPeakAnalysisStore is not initialized.");
 
-        using SqliteCommand command = BuildInsertCommand(
+        using NpgsqlCommand command = BuildInsertCommand(
             currentConnection,
             currentTransaction,
             tableName,
@@ -151,33 +145,30 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
         pendingRows.Clear();
     }
 
-    private static string BuildConnectionString(string dbFilePath)
-    {
-        SqliteConnectionStringBuilder builder = new()
-        {
-            DataSource = dbFilePath,
-            Mode = SqliteOpenMode.ReadWriteCreate,
-            ForeignKeys = false,
-            Pooling = false,
-        };
-
-        return builder.ToString();
-    }
-
-    private static bool TableExists(SqliteConnection connection, string tableName)
+    private static bool TableExists(NpgsqlConnection connection, NpgsqlTransaction transaction, string tableName)
     {
         ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transaction);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 
-        using SqliteCommand command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(1) FROM sqlite_master WHERE type = 'table' AND name = $name;";
-        _ = command.Parameters.AddWithValue("$name", tableName);
+        using NpgsqlCommand command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText =
+            """
+            SELECT COUNT(1)
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relkind = 'r'
+              AND n.nspname = current_schema()
+              AND c.relname = @name;
+            """;
+        _ = command.Parameters.AddWithValue("@name", tableName);
 
         object? scalar = command.ExecuteScalar();
         return scalar is long count && count > 0;
     }
 
-    private static void CreateTableIfNeeded(SqliteConnection connection, SqliteTransaction transaction, string tableName)
+    private static void CreateTableIfNeeded(NpgsqlConnection connection, NpgsqlTransaction transaction, string tableName)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(transaction);
@@ -188,24 +179,24 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
             CultureInfo.InvariantCulture,
             $"""
             CREATE TABLE IF NOT EXISTS {quotedTable} (
-              "idx" INTEGER PRIMARY KEY AUTOINCREMENT,
+              "idx" BIGSERIAL PRIMARY KEY,
               "name" TEXT NOT NULL,
               "stem" TEXT NOT NULL,
-              "window" INTEGER NOT NULL,
-              "ms" INTEGER NOT NULL,
-              "db" REAL NOT NULL,
-              "create_at" INTEGER NOT NULL,
-              "modified_at" INTEGER NOT NULL
+              "window" BIGINT NOT NULL,
+              "ms" BIGINT NOT NULL,
+              "db" DOUBLE PRECISION NOT NULL,
+              "create_at" BIGINT NOT NULL,
+              "modified_at" BIGINT NOT NULL
             );
             """);
 
-        using SqliteCommand command = connection.CreateCommand();
+        using NpgsqlCommand command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = sql;
         _ = command.ExecuteNonQuery();
     }
 
-    private static void CreateIndexesIfNeeded(SqliteConnection connection, SqliteTransaction transaction, string tableName)
+    private static void CreateIndexesIfNeeded(NpgsqlConnection connection, NpgsqlTransaction transaction, string tableName)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(transaction);
@@ -225,7 +216,7 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
 
         for (int i = 0; i < statements.Length; i++)
         {
-            using SqliteCommand command = connection.CreateCommand();
+            using NpgsqlCommand command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText = statements[i];
             _ = command.ExecuteNonQuery();
@@ -239,8 +230,7 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
         ArgumentNullException.ThrowIfNull(columns);
 
         string indexName = QuoteIdentifier(string.Create(CultureInfo.InvariantCulture, $"UX_{prefix}_name_stem_window_ms"));
-        string joinedColumns = string.Join(", ", columns.Select(column => QuoteIdentifier(column)));
-
+        string joinedColumns = string.Join(", ", columns.Select(QuoteIdentifier));
         return string.Create(
             CultureInfo.InvariantCulture,
             $"CREATE UNIQUE INDEX IF NOT EXISTS {indexName} ON {quotedTable} ({joinedColumns});");
@@ -254,16 +244,15 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
         ArgumentNullException.ThrowIfNull(columns);
 
         string indexName = QuoteIdentifier(string.Create(CultureInfo.InvariantCulture, $"IX_{prefix}_{suffix}"));
-        string joinedColumns = string.Join(", ", columns.Select(column => QuoteIdentifier(column)));
-
+        string joinedColumns = string.Join(", ", columns.Select(QuoteIdentifier));
         return string.Create(
             CultureInfo.InvariantCulture,
             $"CREATE INDEX IF NOT EXISTS {indexName} ON {quotedTable} ({joinedColumns});");
     }
 
-    private static SqliteCommand BuildInsertCommand(
-        SqliteConnection connection,
-        SqliteTransaction transaction,
+    private static NpgsqlCommand BuildInsertCommand(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
         string tableName,
         SqliteConflictMode conflictMode,
         IReadOnlyList<PeakInsertRow> rows)
@@ -278,8 +267,7 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
             throw new ArgumentException("At least one row is required.", nameof(rows));
         }
 
-        string quotedTable = QuoteIdentifier(tableName);
-        SqliteCommand command = connection.CreateCommand();
+        NpgsqlCommand command = connection.CreateCommand();
         command.Transaction = transaction;
 
         StringBuilder valuesBuilder = new();
@@ -294,27 +282,27 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
             _ = valuesBuilder.Append(
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"$name{i}, $stem{i}, $window{i}, $ms{i}, $db{i}, $createAt{i}, $modifiedAt{i}"));
+                    $"@name{i}, @stem{i}, @window{i}, @ms{i}, @db{i}, @createAt{i}, @modifiedAt{i}"));
             _ = valuesBuilder.Append(')');
 
             PeakInsertRow row = rows[i];
-            _ = command.Parameters.AddWithValue($"$name{i}", row.Name);
-            _ = command.Parameters.AddWithValue($"$stem{i}", row.Stem);
-            _ = command.Parameters.AddWithValue($"$window{i}", row.WindowMs);
-            _ = command.Parameters.AddWithValue($"$ms{i}", row.Ms);
-            _ = command.Parameters.AddWithValue($"$db{i}", row.Db);
-            _ = command.Parameters.AddWithValue($"$createAt{i}", row.CreateAt);
-            _ = command.Parameters.AddWithValue($"$modifiedAt{i}", row.ModifiedAt);
+            _ = command.Parameters.AddWithValue($"@name{i}", row.Name);
+            _ = command.Parameters.AddWithValue($"@stem{i}", row.Stem);
+            _ = command.Parameters.AddWithValue($"@window{i}", row.WindowMs);
+            _ = command.Parameters.AddWithValue($"@ms{i}", row.Ms);
+            _ = command.Parameters.AddWithValue($"@db{i}", row.Db);
+            _ = command.Parameters.AddWithValue($"@createAt{i}", row.CreateAt);
+            _ = command.Parameters.AddWithValue($"@modifiedAt{i}", row.ModifiedAt);
         }
 
+        string quotedTable = QuoteIdentifier(tableName);
         string prefix = string.Create(
             CultureInfo.InvariantCulture,
             $"INSERT INTO {quotedTable} (\"name\", \"stem\", \"window\", \"ms\", \"db\", \"create_at\", \"modified_at\") VALUES ");
-
         string conflictClause = conflictMode switch
         {
             SqliteConflictMode.Upsert =>
-                " ON CONFLICT(\"name\", \"stem\", \"window\", \"ms\") DO UPDATE SET \"db\" = excluded.\"db\", \"modified_at\" = excluded.\"modified_at\"",
+                " ON CONFLICT(\"name\", \"stem\", \"window\", \"ms\") DO UPDATE SET \"db\" = EXCLUDED.\"db\", \"modified_at\" = EXCLUDED.\"modified_at\"",
             SqliteConflictMode.SkipDuplicate =>
                 " ON CONFLICT(\"name\", \"stem\", \"window\", \"ms\") DO NOTHING",
             _ => string.Empty,
@@ -328,7 +316,6 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
     private static string QuoteIdentifier(string identifier)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
-
         string escaped = identifier.Replace("\"", "\"\"", StringComparison.Ordinal);
         return string.Create(CultureInfo.InvariantCulture, $"\"{escaped}\"");
     }

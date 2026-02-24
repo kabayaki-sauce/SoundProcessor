@@ -1,6 +1,8 @@
 using AudioProcessor.Application.Errors;
 using Microsoft.Data.Sqlite;
+using Npgsql;
 using PeakAnalyzer.Core.Application.Errors;
+using Renci.SshNet.Common;
 using STFTAnalyzer.Core.Application.Errors;
 using SoundAnalyzer.Cli.Infrastructure.Execution;
 using SoundAnalyzer.Cli.Presentation.Cli.Texts;
@@ -17,9 +19,13 @@ internal static class CliErrorMapper
         {
             CliErrorCode.InputDirectoryNotFound => ConsoleTexts.WithValue(ConsoleTexts.InputDirectoryNotFoundPrefix, exception.Detail),
             CliErrorCode.DbDirectoryCreationFailed => ConsoleTexts.WithValue(ConsoleTexts.FailedToCreateDbDirectoryPrefix, exception.Detail),
+            CliErrorCode.DbFileRequired => ConsoleTexts.WithValue(ConsoleTexts.DbFileRequiredPrefix, exception.Detail),
             CliErrorCode.DuplicateStftAnalysisName => ConsoleTexts.WithValue(ConsoleTexts.DuplicateStftAnalysisNamePrefix, exception.Detail),
             CliErrorCode.StftTableBinCountMismatch => ConsoleTexts.WithValue(ConsoleTexts.StftBinCountMismatchPrefix, exception.Detail),
             CliErrorCode.StftTableSchemaMismatch => ConsoleTexts.WithValue(ConsoleTexts.StftSchemaMismatchPrefix, exception.Detail),
+            CliErrorCode.PostgresConfigurationInvalid => ConsoleTexts.WithValue(ConsoleTexts.PostgresConfigurationInvalidPrefix, exception.Detail),
+            CliErrorCode.PostgresCredentialFileNotFound => ConsoleTexts.WithValue(ConsoleTexts.PostgresCredentialFileNotFoundPrefix, exception.Detail),
+            CliErrorCode.PostgresSshTunnelFailed => ConsoleTexts.WithValue(ConsoleTexts.PostgresSshTunnelFailedPrefix, exception.Detail),
             CliErrorCode.UnsupportedMode => ConsoleTexts.WithValue(ConsoleTexts.InvalidModePrefix, exception.Detail),
             _ => exception.Detail,
         };
@@ -74,5 +80,17 @@ internal static class CliErrorMapper
     {
         ArgumentNullException.ThrowIfNull(exception);
         return ConsoleTexts.WithValue(ConsoleTexts.DatabaseOperationFailedPrefix, exception.Message);
+    }
+
+    public static string ToMessage(NpgsqlException exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        return ConsoleTexts.WithValue(ConsoleTexts.PostgresOperationFailedPrefix, exception.Message);
+    }
+
+    public static string ToMessage(SshException exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        return ConsoleTexts.WithValue(ConsoleTexts.PostgresSshTunnelFailedPrefix, exception.Message);
     }
 }

@@ -5,8 +5,8 @@ AudioProcessor は、オーディオ解析・変換ツール群を提供する .
 現時点では次の実行可能な機能を提供しています。
 
 - 無音区間ベース分割: `AudioSplitter.Cli`
-- 窓ピーク dB 解析 + SQLite 保存: `SoundAnalyzer.Cli --mode peak-analysis`
-- 窓STFT解析（チャネル別band dB）+ SQLite 保存: `SoundAnalyzer.Cli --mode stft-analysis`
+- 窓ピーク dB 解析 + SQLite/PostgreSQL 保存: `SoundAnalyzer.Cli --mode peak-analysis`
+- 窓STFT解析（チャネル別band dB）+ SQLite/PostgreSQL 保存: `SoundAnalyzer.Cli --mode stft-analysis`
   - `--window-size` / `--hop` は `ms/s/m/sample/samples` を受理
   - `sample(s)` を1つでも使う場合は `--target-sampling <n>hz` が必須
   - STFT bin は `bin_no` / `db` の縦持ち行として保存（列数上限依存を回避）
@@ -25,7 +25,7 @@ AudioProcessor は、オーディオ解析・変換ツール群を提供する .
 | `AudioSplitter.Cli` | CLI | 無音分割のコマンドライン実行層 |
 | `PeakAnalyzer.Core` | Library | hop/window ベースのピーク dB 窓解析コア |
 | `STFTAnalyzer.Core` | Library | hop/window ベースの短時間FFT band解析コア |
-| `SoundAnalyzer.Cli` | CLI | ディレクトリ一括解析と SQLite 永続化 |
+| `SoundAnalyzer.Cli` | CLI | ディレクトリ一括解析と SQLite/PostgreSQL 永続化 |
 | `AudioProcessor.Tests` | Test | `AudioProcessor` の単体テスト |
 | `Cli.Shared.Tests` | Test | `Cli.Shared` の単体テスト |
 | `AudioSplitter.Core.Tests` | Test | `AudioSplitter.Core` の単体テスト |
@@ -45,6 +45,9 @@ WAL 非対応環境では既存ジャーナルモードへ自動フォールバ�
 
 `--sqlite-fast-mode` 指定時は `synchronous=OFF` など速度優先PRAGMAを追加で適用します。  
 異常終了時の破損/欠損リスクが上がるため、投入ジョブ専用DB・バックアップ運用を推奨します。
+
+`--postgres` 指定時は PostgreSQL 保存モードへ切り替わります。  
+`--postgres-host/--postgres-port/--postgres-db/--postgres-user` が必須で、`--db-file` は指定できません。
 
 ## 前提環境
 
@@ -126,6 +129,12 @@ SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir C:\audio\split -
 
 ```bash
 dotnet SoundAnalyzer.Cli.dll --window-size 50ms --hop 10ms --input-dir /data/audio/split --db-file /data/analyze.db --mode stft-analysis --bin-count 12 --sqlite-batch-row-count 512 --sqlite-fast-mode
+```
+
+### SoundAnalyzer.Cli (PostgreSQL 実行例)
+
+```powershell
+SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir C:\audio\split --mode stft-analysis --bin-count 12 --postgres --postgres-host 127.0.0.1 --postgres-port 5432 --postgres-db audio --postgres-user analyzer --postgres-password secret --show-progress
 ```
 
 ## ライセンス

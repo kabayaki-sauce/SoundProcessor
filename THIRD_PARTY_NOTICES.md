@@ -15,6 +15,8 @@
 | Microsoft.Extensions.DependencyInjection | 10.0.3 | MIT | `AudioProcessor`, `AudioSplitter.Core`, `PeakAnalyzer.Core`, `AudioSplitter.Cli`, `SoundAnalyzer.Cli` | DI コンテナ |
 | Microsoft.Extensions.Hosting | 10.0.3 | MIT | `AudioSplitter.Cli`, `SoundAnalyzer.Cli` | Host 構成 |
 | Microsoft.Data.Sqlite | 10.0.0 | MIT | `SoundAnalyzer.Cli` | SQLite アクセス |
+| Npgsql | 8.0.4 | PostgreSQL License | `SoundAnalyzer.Cli` | PostgreSQL アクセス |
+| SSH.NET | 2024.2.0 | MIT | `SoundAnalyzer.Cli` | SSH トンネル接続 |
 | NAudio | 2.2.1 | MIT（license.txt） | `AudioSplitter.Cli` | 音声関連ユーティリティ |
 | OpenTK.Audio.OpenAL | 4.9.4 | MIT | `AudioSplitter.Cli` | OpenAL バインディング |
 
