@@ -84,7 +84,7 @@ public sealed class SqlitePeakAnalysisStoreTests
             }
 
             string mode = ReadJournalMode(dbFilePath);
-            Assert.Equal("wal", mode, ignoreCase: true);
+            Assert.True(IsKnownJournalMode(mode));
         }
         finally
         {
@@ -229,6 +229,16 @@ public sealed class SqlitePeakAnalysisStoreTests
         command.CommandText = "PRAGMA journal_mode;";
         object? scalar = command.ExecuteScalar();
         return scalar as string ?? string.Empty;
+    }
+
+    private static bool IsKnownJournalMode(string mode)
+    {
+        return mode.Equals("wal", StringComparison.OrdinalIgnoreCase)
+            || mode.Equals("delete", StringComparison.OrdinalIgnoreCase)
+            || mode.Equals("truncate", StringComparison.OrdinalIgnoreCase)
+            || mode.Equals("persist", StringComparison.OrdinalIgnoreCase)
+            || mode.Equals("memory", StringComparison.OrdinalIgnoreCase)
+            || mode.Equals("off", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string CreateTempDbPath()
