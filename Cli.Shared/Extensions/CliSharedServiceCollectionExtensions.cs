@@ -11,6 +11,7 @@ public static class CliSharedServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddSingleton<IProgressDisplayFactory, ProgressDisplayFactory>();
+        services.AddSingleton<ITextBlockProgressDisplayFactory, TextBlockProgressDisplayFactory>();
         return services;
     }
 }

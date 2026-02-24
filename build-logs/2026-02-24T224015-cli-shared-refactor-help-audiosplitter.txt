@@ -1,0 +1,19 @@
+Usage:
+  AudioSplitter.Cli.exe (--input-file <path> | --input-dir <path>) --output-dir <path> --level <dBFS> --duration <time> [options]
+
+Required options:
+  --input-file <path>       Input audio file path (wav/flac/m4a/caf)
+  --input-dir <path>        Input directory path
+  --output-dir <path>       Output directory path
+  --level <dBFS>            Silence threshold in dBFS, negative value only
+  --duration <time>         Silence duration threshold (e.g. 2000ms, 2s, 1m)
+
+Optional:
+  --recursive               Scan input directory recursively (available with --input-dir)
+  --after-offset <time>     Keep this duration from silence start in previous segment (default: 0ms)
+  --resume-offset <time>    Offset from next sound start for next segment, negative allowed (default: 0ms)
+  --resolution-type <spec>  Output resolution: 16bit|24bit|32float,<rate>hz
+  --ffmpeg-path <path>      ffmpeg executable path or directory containing ffmpeg/ffprobe
+  --progress                Show two-line progress bars on interactive stderr
+  -y                        Overwrite output without confirmation
+  --help, -h                Show help

@@ -1,0 +1,12 @@
+  復元対象のプロジェクトを決定しています...
+  C:\Users\KABAYAKI\source\repos\SoundProcessor\STFTAnalyzer.Core\STFTAnalyzer.Core.csproj を復元しました (639 ミリ秒)。
+  C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioProcessor\AudioProcessor.csproj を復元しました (639 ミリ秒)。
+  C:\Users\KABAYAKI\source\repos\SoundProcessor\Cli.Shared\Cli.Shared.csproj を復元しました (639 ミリ秒)。
+  C:\Users\KABAYAKI\source\repos\SoundProcessor\PeakAnalyzer.Core\PeakAnalyzer.Core.csproj を復元しました (639 ミリ秒)。
+  C:\Users\KABAYAKI\source\repos\SoundProcessor\SoundAnalyzer.Cli\SoundAnalyzer.Cli.csproj を復元しました (655 ミリ秒)。
+  Cli.Shared -> C:\Users\KABAYAKI\source\repos\SoundProcessor\Cli.Shared\bin\Release\net10.0\win-x64\Cli.Shared.dll
+  AudioProcessor -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioProcessor\bin\Release\net10.0\win-x64\AudioProcessor.dll
+  STFTAnalyzer.Core -> C:\Users\KABAYAKI\source\repos\SoundProcessor\STFTAnalyzer.Core\bin\Release\net10.0\win-x64\STFTAnalyzer.Core.dll
+  PeakAnalyzer.Core -> C:\Users\KABAYAKI\source\repos\SoundProcessor\PeakAnalyzer.Core\bin\Release\net10.0\win-x64\PeakAnalyzer.Core.dll
+  SoundAnalyzer.Cli -> C:\Users\KABAYAKI\source\repos\SoundProcessor\SoundAnalyzer.Cli\bin\Release\net10.0\win-x64\SoundAnalyzer.Cli.dll
+  SoundAnalyzer.Cli -> C:\Users\KABAYAKI\source\repos\SoundProcessor\SoundAnalyzer.Cli\bin\Release\net10.0\win-x64\publish\

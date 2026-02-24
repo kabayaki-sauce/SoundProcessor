@@ -1,6 +1,4 @@
 using AudioProcessor.Domain.Models;
-using Cli.Shared.Application.Models;
-using Cli.Shared.Application.Ports;
 using SoundAnalyzer.Cli.Infrastructure.Sqlite;
 using SoundAnalyzer.Cli.Presentation.Cli.Arguments;
 
@@ -45,49 +43,6 @@ internal static class BatchExecutionSupport
         }
     }
 
-    public static long EstimateAnchorCount(AudioStreamInfo streamInfo, long hopMs)
-    {
-        ArgumentNullException.ThrowIfNull(streamInfo);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hopMs);
-
-        if (!streamInfo.EstimatedTotalFrames.HasValue)
-        {
-            return 0;
-        }
-
-        long estimatedFrames = streamInfo.EstimatedTotalFrames.Value;
-        long elapsedMs = checked(estimatedFrames * 1000 / streamInfo.SampleRate);
-        if (elapsedMs <= 0)
-        {
-            return 0;
-        }
-
-        return elapsedMs / hopMs;
-    }
-
-    public static long EstimateAnchorCountBySamples(
-        AudioStreamInfo streamInfo,
-        int analysisSampleRate,
-        long hopSamples)
-    {
-        ArgumentNullException.ThrowIfNull(streamInfo);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(analysisSampleRate);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hopSamples);
-
-        if (!streamInfo.EstimatedTotalFrames.HasValue)
-        {
-            return 0;
-        }
-
-        long estimatedFrames = ScaleFrameCount(streamInfo.EstimatedTotalFrames.Value, streamInfo.SampleRate, analysisSampleRate);
-        if (estimatedFrames <= 0)
-        {
-            return 0;
-        }
-
-        return estimatedFrames / hopSamples;
-    }
-
     public static long ConvertDurationMsToSamples(long durationMs, int sampleRate)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(durationMs);
@@ -97,59 +52,61 @@ internal static class BatchExecutionSupport
         return Math.Max(1, converted);
     }
 
-    public static long ScaleFrameCount(long frameCount, int sourceSampleRate, int targetSampleRate)
+    public static bool TryEstimatePeakPointCountPerTarget(
+        AudioStreamInfo streamInfo,
+        long hopMs,
+        out long expectedPointCount)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(frameCount);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceSampleRate);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(targetSampleRate);
+        ArgumentNullException.ThrowIfNull(streamInfo);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hopMs);
 
-        if (sourceSampleRate == targetSampleRate)
+        expectedPointCount = 0;
+        if (!streamInfo.EstimatedTotalFrames.HasValue)
         {
-            return frameCount;
+            return false;
         }
 
-        return checked(frameCount * targetSampleRate / sourceSampleRate);
+        long totalFrames = streamInfo.EstimatedTotalFrames.Value;
+        long totalMs = checked(totalFrames * 1000 / streamInfo.SampleRate);
+        long estimatedPoints = totalMs / hopMs;
+        if (estimatedPoints <= 0)
+        {
+            return false;
+        }
+
+        expectedPointCount = estimatedPoints;
+        return true;
     }
 
-    public static double ToRatio(long processed, long? total)
+    public static bool TryEstimateStftPointCountPerFile(
+        AudioStreamInfo streamInfo,
+        int analysisSampleRate,
+        long hopSamples,
+        out long expectedPointCount)
     {
-        if (!total.HasValue || total.Value <= 0)
+        ArgumentNullException.ThrowIfNull(streamInfo);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(analysisSampleRate);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hopSamples);
+
+        expectedPointCount = 0;
+        if (!streamInfo.EstimatedTotalFrames.HasValue)
         {
-            return 0;
+            return false;
         }
 
-        double ratio = (double)processed / total.Value;
-        if (ratio <= 0)
+        long totalFrames = streamInfo.EstimatedTotalFrames.Value;
+        long analysisFrames = checked(
+            (long)Math.Round(
+                (double)totalFrames * analysisSampleRate / streamInfo.SampleRate,
+                MidpointRounding.AwayFromZero));
+        long anchorCount = analysisFrames / hopSamples;
+        long estimatedPoints = checked(anchorCount * streamInfo.Channels);
+        if (estimatedPoints <= 0)
         {
-            return 0;
+            return false;
         }
 
-        if (ratio >= 1)
-        {
-            return 1;
-        }
-
-        return ratio;
-    }
-
-    public static void ReportDualProgress(
-        IProgressDisplay progressDisplay,
-        string topLabel,
-        long topProcessed,
-        long? topTotal,
-        string bottomLabel,
-        long bottomProcessed,
-        long? bottomTotal)
-    {
-        ArgumentNullException.ThrowIfNull(progressDisplay);
-        ArgumentException.ThrowIfNullOrWhiteSpace(topLabel);
-        ArgumentException.ThrowIfNullOrWhiteSpace(bottomLabel);
-
-        progressDisplay.Report(
-            new DualProgressState(
-                topLabel,
-                ToRatio(topProcessed, topTotal),
-                bottomLabel,
-                ToRatio(bottomProcessed, bottomTotal)));
+        expectedPointCount = estimatedPoints;
+        return true;
     }
 }

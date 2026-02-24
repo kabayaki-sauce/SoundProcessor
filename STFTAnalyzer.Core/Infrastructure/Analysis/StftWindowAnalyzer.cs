@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using AudioProcessor.Application.Ports;
 using STFTAnalyzer.Core.Application.Models;
 using STFTAnalyzer.Core.Application.Ports;
@@ -17,20 +18,24 @@ internal sealed class StftWindowAnalyzer : IAudioPcmFrameSink
     private readonly int binCount;
     private readonly double minLimitDb;
     private readonly IStftAnalysisPointWriter pointWriter;
+    private readonly int processingThreads;
+    private readonly bool useWindowPipelineMode;
 
     private readonly int windowFrameCount;
     private readonly int ringLength;
+    private readonly int fftLength;
+    private readonly int positiveFrequencyBinCount;
     private readonly double[][] channelRingBuffers;
     private readonly double[] hannWindow;
-    private readonly int positiveFrequencyBinCount;
 
-    private readonly double[] fftReal;
-    private readonly double[] fftImag;
+    private readonly Channel<AnchorWorkItem>? anchorChannel;
+    private readonly Task[] pipelineWorkers;
 
     private long frameIndex;
-    private int pointCount;
+    private long pointCount;
     private long lastAnchor;
     private long nextAnchorSample;
+    private Exception? pipelineException;
 
     public StftWindowAnalyzer(
         int sampleRate,
@@ -42,7 +47,8 @@ internal sealed class StftWindowAnalyzer : IAudioPcmFrameSink
         StftAnchorUnit anchorUnit,
         int binCount,
         double minLimitDb,
-        IStftAnalysisPointWriter pointWriter)
+        IStftAnalysisPointWriter pointWriter,
+        int processingThreads)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleRate);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(channels);
@@ -52,6 +58,7 @@ internal sealed class StftWindowAnalyzer : IAudioPcmFrameSink
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(windowPersistedValue);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(binCount);
         ArgumentNullException.ThrowIfNull(pointWriter);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(processingThreads);
 
         this.sampleRate = sampleRate;
         this.channels = channels;
@@ -63,6 +70,8 @@ internal sealed class StftWindowAnalyzer : IAudioPcmFrameSink
         this.binCount = binCount;
         this.minLimitDb = minLimitDb;
         this.pointWriter = pointWriter;
+        this.processingThreads = processingThreads;
+        useWindowPipelineMode = processingThreads > channels;
 
         if (windowSamples > int.MaxValue - 2)
         {
@@ -79,7 +88,7 @@ internal sealed class StftWindowAnalyzer : IAudioPcmFrameSink
         }
 
         hannWindow = BuildHannWindow(windowFrameCount);
-        int fftLength = NextPowerOfTwo(windowFrameCount);
+        fftLength = NextPowerOfTwo(windowFrameCount);
         positiveFrequencyBinCount = (fftLength / 2) + 1;
 
         if (binCount > positiveFrequencyBinCount)
@@ -87,10 +96,29 @@ internal sealed class StftWindowAnalyzer : IAudioPcmFrameSink
             throw new ArgumentOutOfRangeException(nameof(binCount), "Bin count exceeds positive frequency bins.");
         }
 
-        fftReal = new double[fftLength];
-        fftImag = new double[fftLength];
-
         nextAnchorSample = hopSamples;
+
+        if (useWindowPipelineMode)
+        {
+            int channelCapacity = Math.Max(1, processingThreads * 2);
+            anchorChannel = Channel.CreateBounded<AnchorWorkItem>(
+                new BoundedChannelOptions(channelCapacity)
+                {
+                    SingleWriter = true,
+                    SingleReader = false,
+                    FullMode = BoundedChannelFullMode.Wait,
+                });
+
+            pipelineWorkers = new Task[processingThreads];
+            for (int i = 0; i < pipelineWorkers.Length; i++)
+            {
+                pipelineWorkers[i] = Task.Run(RunPipelineWorkerAsync, CancellationToken.None);
+            }
+        }
+        else
+        {
+            pipelineWorkers = Array.Empty<Task>();
+        }
     }
 
     public void OnFrame(ReadOnlySpan<float> frameSamples)
@@ -99,6 +127,8 @@ internal sealed class StftWindowAnalyzer : IAudioPcmFrameSink
         {
             throw new ArgumentException("Unexpected channel count.", nameof(frameSamples));
         }
+
+        ThrowIfPipelineFaulted();
 
         int writeIndex = checked((int)(frameIndex % ringLength));
         for (int channel = 0; channel < channels; channel++)
@@ -117,32 +147,146 @@ internal sealed class StftWindowAnalyzer : IAudioPcmFrameSink
 
     public StftAnalysisSummary BuildSummary()
     {
-        return new StftAnalysisSummary(pointCount, frameIndex, lastAnchor);
+        if (useWindowPipelineMode)
+        {
+            anchorChannel!.Writer.TryComplete();
+
+            try
+            {
+                Task.WaitAll(pipelineWorkers);
+            }
+            catch (AggregateException aggregateException)
+            {
+                Exception baseException = aggregateException.GetBaseException();
+                pipelineException ??= baseException;
+            }
+
+            ThrowIfPipelineFaulted();
+        }
+
+        return new StftAnalysisSummary(checked((int)pointCount), frameIndex, lastAnchor);
     }
 
     private void EmitPoint(long anchorSample)
     {
-        long endFrameExclusive = anchorSample;
-        long startFrame = endFrameExclusive - windowSamples;
         long anchorValue = anchorUnit == StftAnchorUnit.Sample
             ? anchorSample
             : FrameToElapsedMsFloor(anchorSample, sampleRate);
+        lastAnchor = anchorValue;
+
+        if (useWindowPipelineMode)
+        {
+            EnqueueAnchorWorkItem(anchorSample, anchorValue);
+            return;
+        }
+
+        EmitImmediate(anchorSample, anchorValue);
+    }
+
+    private void EnqueueAnchorWorkItem(long anchorSample, long anchorValue)
+    {
+        long startFrame = anchorSample - windowSamples;
+        double[][] capturedWindows = CaptureChannelWindows(startFrame);
+        AnchorWorkItem workItem = new(anchorValue, capturedWindows);
+
+        try
+        {
+            anchorChannel!.Writer.WriteAsync(workItem).AsTask().GetAwaiter().GetResult();
+        }
+        catch (ChannelClosedException)
+        {
+            ThrowIfPipelineFaulted();
+            throw;
+        }
+    }
+
+    private void EmitImmediate(long anchorSample, long anchorValue)
+    {
+        long startFrame = anchorSample - windowSamples;
+        double[][] binsByChannel = new double[channels][];
+
+        if (processingThreads > 1 && channels > 1)
+        {
+            Parallel.For(
+                0,
+                channels,
+                new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = processingThreads,
+                },
+                channel =>
+                {
+                    binsByChannel[channel] = AnalyzeChannelFromRing(channel, startFrame);
+                });
+        }
+        else
+        {
+            for (int channel = 0; channel < channels; channel++)
+            {
+                binsByChannel[channel] = AnalyzeChannelFromRing(channel, startFrame);
+            }
+        }
 
         for (int channel = 0; channel < channels; channel++)
         {
-            LoadWindow(channel, startFrame);
-            FftMath.TransformInPlace(fftReal, fftImag);
-
-            double[] bins = BuildBandValues();
-            StftAnalysisPoint point = new(name, channel, windowPersistedValue, anchorValue, bins);
+            StftAnalysisPoint point = new(name, channel, windowPersistedValue, anchorValue, binsByChannel[channel]);
             pointWriter.Write(point);
             pointCount++;
         }
-
-        lastAnchor = anchorValue;
     }
 
-    private void LoadWindow(int channel, long startFrame)
+    private async Task RunPipelineWorkerAsync()
+    {
+        ArgumentNullException.ThrowIfNull(anchorChannel);
+
+        double[] fftReal = new double[fftLength];
+        double[] fftImag = new double[fftLength];
+
+        await foreach (AnchorWorkItem workItem in anchorChannel.Reader.ReadAllAsync().ConfigureAwait(false))
+        {
+            for (int channel = 0; channel < channels; channel++)
+            {
+                LoadWindowFromCaptured(workItem.ChannelWindows[channel], fftReal, fftImag);
+                FftMath.TransformInPlace(fftReal, fftImag);
+                double[] bins = BuildBandValues(fftReal, fftImag);
+
+                StftAnalysisPoint point = new(name, channel, windowPersistedValue, workItem.AnchorValue, bins);
+                pointWriter.Write(point);
+            }
+
+            _ = Interlocked.Add(ref pointCount, channels);
+        }
+    }
+
+    private double[][] CaptureChannelWindows(long startFrame)
+    {
+        double[][] capturedWindows = new double[channels][];
+        for (int channel = 0; channel < channels; channel++)
+        {
+            double[] captured = new double[windowFrameCount];
+            for (int offset = 0; offset < windowFrameCount; offset++)
+            {
+                long sourceFrame = startFrame + offset;
+                captured[offset] = sourceFrame < 0 ? 0 : ReadBufferedSample(channel, sourceFrame);
+            }
+
+            capturedWindows[channel] = captured;
+        }
+
+        return capturedWindows;
+    }
+
+    private double[] AnalyzeChannelFromRing(int channel, long startFrame)
+    {
+        double[] fftReal = new double[fftLength];
+        double[] fftImag = new double[fftLength];
+
+        LoadWindowFromRing(channel, startFrame, fftReal, fftImag);
+        FftMath.TransformInPlace(fftReal, fftImag);
+        return BuildBandValues(fftReal, fftImag);
+    }
+
+    private void LoadWindowFromRing(int channel, long startFrame, double[] fftReal, double[] fftImag)
     {
         Array.Clear(fftReal, 0, fftReal.Length);
         Array.Clear(fftImag, 0, fftImag.Length);
@@ -155,7 +299,18 @@ internal sealed class StftWindowAnalyzer : IAudioPcmFrameSink
         }
     }
 
-    private double[] BuildBandValues()
+    private void LoadWindowFromCaptured(double[] captured, double[] fftReal, double[] fftImag)
+    {
+        Array.Clear(fftReal, 0, fftReal.Length);
+        Array.Clear(fftImag, 0, fftImag.Length);
+
+        for (int offset = 0; offset < windowFrameCount; offset++)
+        {
+            fftReal[offset] = captured[offset] * hannWindow[offset];
+        }
+    }
+
+    private double[] BuildBandValues(double[] fftReal, double[] fftImag)
     {
         double[] bins = new double[binCount];
 
@@ -221,6 +376,14 @@ internal sealed class StftWindowAnalyzer : IAudioPcmFrameSink
         return channelRingBuffers[channel][index];
     }
 
+    private void ThrowIfPipelineFaulted()
+    {
+        if (pipelineException is not null)
+        {
+            throw new InvalidOperationException("Window pipeline failed.", pipelineException);
+        }
+    }
+
     private static double[] BuildHannWindow(int sampleCount)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleCount);
@@ -261,6 +424,8 @@ internal sealed class StftWindowAnalyzer : IAudioPcmFrameSink
     {
         return checked(frameCount * 1000 / sampleRate);
     }
+
+    private readonly record struct AnchorWorkItem(long AnchorValue, double[][] ChannelWindows);
 
     private static class FftMath
     {

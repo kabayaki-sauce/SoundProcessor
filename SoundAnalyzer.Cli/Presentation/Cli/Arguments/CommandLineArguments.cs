@@ -20,7 +20,12 @@ internal sealed class CommandLineArguments
         bool deleteCurrent,
         bool recursive,
         string? ffmpegPath,
-        bool progress)
+        int stftProcThreads,
+        int peakProcThreads,
+        int stftFileThreads,
+        int peakFileThreads,
+        int insertQueueSize,
+        bool showProgress)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(windowValue);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hopValue);
@@ -28,6 +33,11 @@ internal sealed class CommandLineArguments
         ArgumentException.ThrowIfNullOrWhiteSpace(dbFilePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(mode);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(stftProcThreads);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(peakProcThreads);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(stftFileThreads);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(peakFileThreads);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(insertQueueSize);
 
         if (targetSamplingHz.HasValue)
         {
@@ -61,7 +71,12 @@ internal sealed class CommandLineArguments
         DeleteCurrent = deleteCurrent;
         Recursive = recursive;
         FfmpegPath = ffmpegPath;
-        Progress = progress;
+        StftProcThreads = stftProcThreads;
+        PeakProcThreads = peakProcThreads;
+        StftFileThreads = stftFileThreads;
+        PeakFileThreads = peakFileThreads;
+        InsertQueueSize = insertQueueSize;
+        ShowProgress = showProgress;
     }
 
     public long WindowValue { get; }
@@ -98,7 +113,17 @@ internal sealed class CommandLineArguments
 
     public string? FfmpegPath { get; }
 
-    public bool Progress { get; }
+    public int StftProcThreads { get; }
+
+    public int PeakProcThreads { get; }
+
+    public int StftFileThreads { get; }
+
+    public int PeakFileThreads { get; }
+
+    public int InsertQueueSize { get; }
+
+    public bool ShowProgress { get; }
 
     public bool UsesSampleUnit => WindowUnit == AnalysisLengthUnit.Sample || HopUnit == AnalysisLengthUnit.Sample;
 

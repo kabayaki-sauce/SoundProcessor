@@ -18,8 +18,13 @@ internal static class ConsoleTexts
     public const string BinCountOption = "--bin-count";
     public const string DeleteCurrentOption = "--delete-current";
     public const string RecursiveOption = "--recursive";
+    public const string StftProcThreadsOption = "--stft-proc-threads";
+    public const string PeakProcThreadsOption = "--peak-proc-threads";
+    public const string StftFileThreadsOption = "--stft-file-threads";
+    public const string PeakFileThreadsOption = "--peak-file-threads";
+    public const string InsertQueueSizeOption = "--insert-queue-size";
     public const string FfmpegPathOption = "--ffmpeg-path";
-    public const string ProgressOption = "--progress";
+    public const string ShowProgressOption = "--show-progress";
     public const string HelpOption = "--help";
     public const string ShortHelpOption = "-h";
 
@@ -51,13 +56,18 @@ Optional:
   --bin-count <n>           STFT mode only. Number of output bands (required in stft-analysis)
   --delete-current          STFT mode only. Drop current table before processing
   --recursive               STFT mode only. Scan files recursively from input-dir
+  --stft-proc-threads <n>   STFT mode only. Processing threads per file (default: 1)
+  --peak-proc-threads <n>   Peak mode only. Processing threads per song (default: 1)
+  --stft-file-threads <n>   STFT mode only. Number of files analyzed in parallel (default: 1)
+  --peak-file-threads <n>   Peak mode only. Number of songs analyzed in parallel (default: 1)
+  --insert-queue-size <n>   Bounded queue size between analyze and DB insert (default: 1024)
   --ffmpeg-path <path>      ffmpeg executable path or directory containing ffmpeg/ffprobe
-  --progress                Show two-line progress bars on interactive stderr
+  --show-progress           Show advanced progress UI on interactive stderr
   --help, -h                Show help
 
 Examples:
-  SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir /path/to/dir --db-file /path/to/file.db --mode peak-analysis --stems Piano,Drums --table-name-override T_PEAK --upsert
-  SoundAnalyzer.Cli.exe --window-size 2048samples --hop 512samples --target-sampling 44100hz --input-dir /path/to/dir --db-file /path/to/file.db --mode stft-analysis --bin-count 12 --table-name-override T_STFT --upsert --recursive
+  SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir /path/to/dir --db-file /path/to/file.db --mode peak-analysis --stems Piano,Drums --peak-file-threads 2 --peak-proc-threads 4 --insert-queue-size 2048 --show-progress
+  SoundAnalyzer.Cli.exe --window-size 2048samples --hop 512samples --target-sampling 44100hz --input-dir /path/to/dir --db-file /path/to/file.db --mode stft-analysis --bin-count 12 --stft-file-threads 2 --stft-proc-threads 6 --insert-queue-size 4096 --show-progress
 """;
 
     public const string MissingOptionPrefix = "Missing required option: ";
@@ -71,12 +81,8 @@ Examples:
     public const string InvalidTableNamePrefix = "Invalid table name: ";
     public const string InvalidStemsText = "--stems must contain at least one stem name when specified.";
     public const string UpsertSkipConflictText = "--upsert and --skip-duplicate cannot be specified together.";
-    public const string BinCountOnlyForStftText = "--bin-count can only be used with --mode stft-analysis.";
-    public const string DeleteCurrentOnlyForStftText = "--delete-current can only be used with --mode stft-analysis.";
-    public const string RecursiveOnlyForStftText = "--recursive can only be used with --mode stft-analysis.";
-    public const string StemsNotSupportedForStftText = "--stems is not supported with --mode stft-analysis.";
     public const string SampleUnitOnlyForStftText = "sample/sample(s) units are only supported with --mode stft-analysis.";
-    public const string TargetSamplingOnlyForStftText = "--target-sampling can only be used with --mode stft-analysis when sample/sample(s) units are used.";
+    public const string IncompatibleOptionIgnoredPrefix = "Option is ignored for current mode: ";
 
     public const string InputDirectoryNotFoundPrefix = "Input directory does not exist: ";
     public const string FailedToCreateDbDirectoryPrefix = "Failed to create db directory: ";

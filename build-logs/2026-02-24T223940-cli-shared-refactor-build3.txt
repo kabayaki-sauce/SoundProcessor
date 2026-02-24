@@ -1,0 +1,22 @@
+  復元対象のプロジェクトを決定しています...
+  復元対象のすべてのプロジェクトは最新です。
+  AudioProcessor -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioProcessor\bin\Debug\net10.0\AudioProcessor.dll
+  AudioSplitter.Core -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Core\bin\Debug\net10.0\AudioSplitter.Core.dll
+  Cli.Shared -> C:\Users\KABAYAKI\source\repos\SoundProcessor\Cli.Shared\bin\Debug\net10.0\Cli.Shared.dll
+  PeakAnalyzer.Core -> C:\Users\KABAYAKI\source\repos\SoundProcessor\PeakAnalyzer.Core\bin\Debug\net10.0\PeakAnalyzer.Core.dll
+  STFTAnalyzer.Core -> C:\Users\KABAYAKI\source\repos\SoundProcessor\STFTAnalyzer.Core\bin\Debug\net10.0\STFTAnalyzer.Core.dll
+  AudioProcessor.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioProcessor.Tests\bin\Debug\net10.0\AudioProcessor.Tests.dll
+  Cli.Shared.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\Cli.Shared.Tests\bin\Debug\net10.0\Cli.Shared.Tests.dll
+  AudioSplitter.Cli -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli\bin\Debug\net10.0\AudioSplitter.Cli.dll
+  AudioSplitter.Core.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Core.Tests\bin\Debug\net10.0\AudioSplitter.Core.Tests.dll
+  PeakAnalyzer.Core.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\PeakAnalyzer.Core.Tests\bin\Debug\net10.0\PeakAnalyzer.Core.Tests.dll
+  SoundAnalyzer.Cli -> C:\Users\KABAYAKI\source\repos\SoundProcessor\SoundAnalyzer.Cli\bin\Debug\net10.0\SoundAnalyzer.Cli.dll
+  STFTAnalyzer.Core.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\STFTAnalyzer.Core.Tests\bin\Debug\net10.0\STFTAnalyzer.Core.Tests.dll
+  SoundAnalyzer.Cli.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\SoundAnalyzer.Cli.Tests\bin\Debug\net10.0\SoundAnalyzer.Cli.Tests.dll
+  AudioSplitter.Cli.Tests -> C:\Users\KABAYAKI\source\repos\SoundProcessor\AudioSplitter.Cli.Tests\bin\Debug\net10.0\AudioSplitter.Cli.Tests.dll
+
+ビルドに成功しました。
+    0 個の警告
+    0 エラー
+
+経過時間 00:00:02.43

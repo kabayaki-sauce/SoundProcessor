@@ -67,6 +67,13 @@ public sealed class StftAnalysisUseCase
                 request.BinCount.ToString(CultureInfo.InvariantCulture));
         }
 
+        if (request.ProcessingThreads <= 0)
+        {
+            throw new StftAnalysisException(
+                StftAnalysisErrorCode.InvalidBinCount,
+                request.ProcessingThreads.ToString(CultureInfo.InvariantCulture));
+        }
+
         if (double.IsNaN(request.MinLimitDb) || double.IsInfinity(request.MinLimitDb))
         {
             throw new StftAnalysisException(
@@ -105,7 +112,8 @@ public sealed class StftAnalysisUseCase
             request.AnchorUnit,
             request.BinCount,
             request.MinLimitDb,
-            pointWriter);
+            pointWriter,
+            request.ProcessingThreads);
 
         int? targetSampleRateHz = request.AnalysisSampleRate == streamInfo.SampleRate
             ? null

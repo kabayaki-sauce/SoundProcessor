@@ -10,14 +10,15 @@ AudioProcessor は、オーディオ解析・変換ツール群を提供する .
   - `--window-size` / `--hop` は `ms/s/m/sample/samples` を受理
   - `sample(s)` を1つでも使う場合は `--target-sampling <n>hz` が必須
   - STFT bin は `bin_no` / `db` の縦持ち行として保存（列数上限依存を回避）
-- `--progress` は interactive な `pwsh/cmd` で UTF-8 を適用し、`█/░` のバー表示を維持
+  - `--stft-proc-threads` / `--stft-file-threads` / `--insert-queue-size` で並列・キュー制御
+- `--show-progress` は interactive な `pwsh/cmd` で、Songs/Threads/Queue の詳細進捗を `stderr` に表示（Thread行は単一ゲージで Insert=緑 / Analyze=白 / 未処理=斑点）
 
 ## プロジェクト構成
 
 | パス | 種別 | 役割 |
 |---|---|---|
 | `AudioProcessor` | Library | 外部オーディオ処理エンジン連携、プローブ、PCM ストリーム読取、セグメント出力などの共通基盤 |
-| `Cli.Shared` | Library | CLI 表示共通化（2段プログレス表示、TTY判定、stderr描画） |
+| `Cli.Shared` | Library | CLI 表示共通化（2段プログレス表示、テキストブロック再描画、TTY判定、stderr描画） |
 | `AudioSplitter.Core` | Library | 無音分割ドメイン、境界計算、分割ユースケース |
 | `AudioSplitter.Cli` | CLI | 無音分割のコマンドライン実行層 |
 | `PeakAnalyzer.Core` | Library | hop/window ベースのピーク dB 窓解析コア |
