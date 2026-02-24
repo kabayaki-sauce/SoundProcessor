@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\SoundAnalyzer.Cli\SoundAnalyzer.Cli.csproj" />
     <ProjectReference Include="..\PeakAnalyzer.Core\PeakAnalyzer.Core.csproj" />
+    <ProjectReference Include="..\SFFTAnalyzer.Core\SFFTAnalyzer.Core.csproj" />
     <ProjectReference Include="..\AudioProcessor\AudioProcessor.csproj" />
   </ItemGroup>
 

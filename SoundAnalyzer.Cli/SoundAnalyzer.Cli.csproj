@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\PeakAnalyzer.Core\PeakAnalyzer.Core.csproj" />
+    <ProjectReference Include="..\SFFTAnalyzer.Core\SFFTAnalyzer.Core.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

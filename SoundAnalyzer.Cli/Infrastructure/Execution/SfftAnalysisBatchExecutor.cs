@@ -1,22 +1,22 @@
-using PeakAnalyzer.Core.Application.Models;
-using PeakAnalyzer.Core.Application.UseCases;
-using PeakAnalyzer.Core.Domain.Models;
+using SFFTAnalyzer.Core.Application.Models;
+using SFFTAnalyzer.Core.Application.UseCases;
+using SFFTAnalyzer.Core.Domain.Models;
 using SoundAnalyzer.Cli.Infrastructure.FileSystem;
 using SoundAnalyzer.Cli.Infrastructure.Sqlite;
 using SoundAnalyzer.Cli.Presentation.Cli.Arguments;
 
 namespace SoundAnalyzer.Cli.Infrastructure.Execution;
 
-internal sealed class PeakAnalysisBatchExecutor
+internal sealed class SfftAnalysisBatchExecutor
 {
-    private readonly PeakAnalysisUseCase peakAnalysisUseCase;
+    private readonly SfftAnalysisUseCase sfftAnalysisUseCase;
 
-    public PeakAnalysisBatchExecutor(PeakAnalysisUseCase peakAnalysisUseCase)
+    public SfftAnalysisBatchExecutor(SfftAnalysisUseCase sfftAnalysisUseCase)
     {
-        this.peakAnalysisUseCase = peakAnalysisUseCase ?? throw new ArgumentNullException(nameof(peakAnalysisUseCase));
+        this.sfftAnalysisUseCase = sfftAnalysisUseCase ?? throw new ArgumentNullException(nameof(sfftAnalysisUseCase));
     }
 
-    public async Task<PeakAnalysisBatchSummary> ExecuteAsync(
+    public async Task<SfftAnalysisBatchSummary> ExecuteAsync(
         CommandLineArguments arguments,
         CancellationToken cancellationToken)
     {
@@ -27,32 +27,39 @@ internal sealed class PeakAnalysisBatchExecutor
             throw new CliException(CliErrorCode.InputDirectoryNotFound, arguments.InputDirectoryPath);
         }
 
+        int binCount = arguments.BinCount ?? throw new CliException(CliErrorCode.UnsupportedMode, arguments.Mode);
+
         BatchExecutionSupport.EnsureDbDirectory(arguments.DbFilePath);
 
-        ResolvedStemAudioFiles resolved = StemAudioFileResolver.Resolve(
+        ResolvedSfftAudioFiles resolved = SfftAudioFileResolver.Resolve(
             arguments.InputDirectoryPath,
-            arguments.Stems);
+            arguments.Recursive);
 
         SqliteConflictMode conflictMode = BatchExecutionSupport.ResolveConflictMode(arguments);
 
         long writtenPointCount = 0;
-        using SqlitePeakAnalysisStore store = new(arguments.DbFilePath, arguments.TableName, conflictMode);
+        using SqliteSfftAnalysisStore store = new(
+            arguments.DbFilePath,
+            arguments.TableName,
+            conflictMode,
+            binCount,
+            arguments.DeleteCurrent);
         store.Initialize();
 
-        foreach (StemAudioFile target in resolved.Files)
+        foreach (SfftAudioFile target in resolved.Files)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            PeakAnalysisRequest request = new(
+            SfftAnalysisRequest request = new(
                 target.FilePath,
                 target.Name,
-                target.Stem,
                 arguments.WindowSizeMs,
                 arguments.HopMs,
+                binCount,
                 arguments.MinLimitDb,
                 arguments.FfmpegPath);
 
-            PeakAnalysisSummary summary = await peakAnalysisUseCase
+            SfftAnalysisSummary summary = await sfftAnalysisUseCase
                 .ExecuteAsync(request, store, cancellationToken)
                 .ConfigureAwait(false);
 
@@ -61,11 +68,11 @@ internal sealed class PeakAnalysisBatchExecutor
 
         store.Complete();
 
-        return new PeakAnalysisBatchSummary(
+        return new SfftAnalysisBatchSummary(
             resolved.DirectoryCount,
             resolved.Files.Count,
-            resolved.SkippedStemCount,
             writtenPointCount,
-            arguments.TableName);
+            arguments.TableName,
+            binCount);
     }
 }

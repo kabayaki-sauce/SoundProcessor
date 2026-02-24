@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using PeakAnalyzer.Core.Application.Errors;
 using PeakAnalyzer.Core.Extensions;
+using SFFTAnalyzer.Core.Application.Errors;
+using SFFTAnalyzer.Core.Extensions;
 using SoundAnalyzer.Cli.Infrastructure.Execution;
 using SoundAnalyzer.Cli.Presentation.Cli.Arguments;
 using SoundAnalyzer.Cli.Presentation.Cli.Errors;
@@ -44,11 +46,8 @@ internal static class Entry
 
         try
         {
-            PeakAnalysisBatchExecutor executor = host.Services.GetRequiredService<PeakAnalysisBatchExecutor>();
-            PeakAnalysisBatchSummary summary = executor
-                .ExecuteAsync(parseResult.Arguments, cancellationTokenSource.Token)
-                .GetAwaiter()
-                .GetResult();
+            CommandLineArguments arguments = parseResult.Arguments;
+            object summary = Execute(arguments, host.Services, cancellationTokenSource.Token);
 
             string serialized = JsonSerializer.Serialize(summary);
             System.Console.Out.WriteLine(serialized);
@@ -69,6 +68,11 @@ internal static class Entry
             WriteErrors(new[] { CliErrorMapper.ToMessage(exception) });
             return 1;
         }
+        catch (SfftAnalysisException exception)
+        {
+            WriteErrors(new[] { CliErrorMapper.ToMessage(exception) });
+            return 1;
+        }
         catch (AudioProcessorException exception)
         {
             WriteErrors(new[] { CliErrorMapper.ToMessage(exception) });
@@ -85,12 +89,33 @@ internal static class Entry
         }
     }
 
+    private static object Execute(CommandLineArguments arguments, IServiceProvider services, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentNullException.ThrowIfNull(services);
+
+        return arguments.Mode switch
+        {
+            ConsoleTexts.PeakAnalysisMode => services.GetRequiredService<PeakAnalysisBatchExecutor>()
+                .ExecuteAsync(arguments, cancellationToken)
+                .GetAwaiter()
+                .GetResult(),
+            ConsoleTexts.SfftAnalysisMode => services.GetRequiredService<SfftAnalysisBatchExecutor>()
+                .ExecuteAsync(arguments, cancellationToken)
+                .GetAwaiter()
+                .GetResult(),
+            _ => throw new CliException(CliErrorCode.UnsupportedMode, arguments.Mode),
+        };
+    }
+
     private static IHost BuildHost()
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
 
         builder.Services.AddPeakAnalyzerCore();
+        builder.Services.AddSfftAnalyzerCore();
         builder.Services.AddSingleton<PeakAnalysisBatchExecutor>();
+        builder.Services.AddSingleton<SfftAnalysisBatchExecutor>();
 
         return builder.Build();
     }
