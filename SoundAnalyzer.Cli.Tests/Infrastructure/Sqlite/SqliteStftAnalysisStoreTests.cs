@@ -351,6 +351,68 @@ public sealed class SqliteStftAnalysisStoreTests
         }
     }
 
+    [Fact]
+    public void Write_ShouldClampBatchSizeBySqliteVariableLimit_WhenConfiguredBatchIsLarge()
+    {
+        string dbFilePath = CreateTempDbPath();
+        const int binCount = 3000;
+
+        try
+        {
+            StftAnalysisPoint point = new("Song", 0, 4096, 1024, CreateBins(binCount, -6));
+
+            using (SqliteStftAnalysisStore store = new(
+                       dbFilePath,
+                       "T_STFTAnalysis",
+                       "sample",
+                       SqliteConflictMode.Error,
+                       binCount: binCount,
+                       deleteCurrent: false,
+                       writeOptions: new SqliteWriteOptions(fastMode: true, batchRowCount: 10000)))
+            {
+                store.Initialize();
+                store.Write(point);
+                store.Complete();
+            }
+
+            Assert.Equal(binCount, ReadRowCount(dbFilePath));
+            Assert.Equal(binCount, ReadMaxBinNo(dbFilePath));
+        }
+        finally
+        {
+            DeleteIfExists(dbFilePath);
+        }
+    }
+
+    [Fact]
+    public void Complete_ShouldFailOnDuplicateRows_WhenNewTableUsesDeferredUniqueIndex()
+    {
+        string dbFilePath = CreateTempDbPath();
+        try
+        {
+            StftAnalysisPoint point = new("Song", 0, 50, 10, CreateBins(4, -10));
+
+            using SqliteStftAnalysisStore store = new(
+                dbFilePath,
+                "T_STFTAnalysis",
+                "ms",
+                SqliteConflictMode.Error,
+                binCount: 4,
+                deleteCurrent: false,
+                writeOptions: new SqliteWriteOptions(fastMode: false, batchRowCount: 64));
+
+            store.Initialize();
+            store.Write(point);
+            store.Write(point);
+
+            _ = Assert.Throws<SqliteException>(() => store.Complete());
+        }
+        finally
+        {
+            DeleteIfExists(dbFilePath);
+        }
+    }
+
     private static void CreateLegacyWideStftTable(string dbFilePath)
     {
         using SqliteConnection connection = OpenConnection(dbFilePath);

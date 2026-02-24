@@ -23,6 +23,8 @@ internal static class ConsoleTexts
     public const string StftFileThreadsOption = "--stft-file-threads";
     public const string PeakFileThreadsOption = "--peak-file-threads";
     public const string InsertQueueSizeOption = "--insert-queue-size";
+    public const string SqliteFastModeOption = "--sqlite-fast-mode";
+    public const string SqliteBatchRowCountOption = "--sqlite-batch-row-count";
     public const string FfmpegPathOption = "--ffmpeg-path";
     public const string ShowProgressOption = "--show-progress";
     public const string HelpOption = "--help";
@@ -61,6 +63,9 @@ Optional:
   --stft-file-threads <n>   STFT mode only. Number of files analyzed in parallel (default: 1)
   --peak-file-threads <n>   Peak mode only. Number of songs analyzed in parallel (default: 1)
   --insert-queue-size <n>   Bounded queue size between analyze and DB insert (default: 1024)
+  --sqlite-fast-mode        Enable SQLite write-speed PRAGMA tuning (durability trade-off)
+  --sqlite-batch-row-count <n>
+                            SQLite multi-row INSERT batch size (default: 512)
   --ffmpeg-path <path>      ffmpeg executable path or directory containing ffmpeg/ffprobe
   --show-progress           Show advanced progress UI on interactive stderr
   --help, -h                Show help

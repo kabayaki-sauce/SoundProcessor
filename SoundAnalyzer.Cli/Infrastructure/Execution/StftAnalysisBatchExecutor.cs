@@ -63,13 +63,15 @@ internal sealed class StftAnalysisBatchExecutor
             arguments.InsertQueueSize);
 
         SqliteConflictMode conflictMode = BatchExecutionSupport.ResolveConflictMode(arguments);
+        SqliteWriteOptions writeOptions = new(arguments.SqliteFastMode, arguments.SqliteBatchRowCount);
         using SqliteStftAnalysisStore store = new(
             arguments.DbFilePath,
             arguments.TableName,
             anchorColumnName,
             conflictMode,
             binCount,
-            arguments.DeleteCurrent);
+            arguments.DeleteCurrent,
+            writeOptions);
         store.Initialize();
 
         FfmpegToolPaths toolPaths = ffmpegLocator.Resolve(arguments.FfmpegPath);

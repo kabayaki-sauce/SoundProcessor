@@ -32,6 +32,8 @@ SoundAnalyzer.Cli.exe --window-size <len> --hop <len> --input-dir <path> --db-fi
 | `--stft-file-threads <n>` | 任意 | `stft-analysis` のみ。同時解析ファイル数（既定 `1`） |
 | `--peak-file-threads <n>` | 任意 | `peak-analysis` のみ。同時解析 Song 数（既定 `1`） |
 | `--insert-queue-size <n>` | 任意 | 解析と DB Insert の間に置く bounded queue の容量（既定 `1024`） |
+| `--sqlite-batch-row-count <n>` | 任意 | SQLite の複数行 INSERT バッチ行数（既定 `512`、SQLite変数上限で自動クランプ） |
+| `--sqlite-fast-mode` | 任意 | SQLite 書込PRAGMAを速度優先へ切替（`synchronous=OFF` 等、耐障害性トレードオフあり） |
 | `--stems <csv>` | 任意 | `peak-analysis` のみ。解析対象 stem |
 | `--ffmpeg-path <path>` | 任意 | 音声処理ツールのパス指定（現行実装では ffmpeg/ffprobe） |
 | `--show-progress` | 任意 | 対話端末で詳細進捗表示（Songs/Threads/Queue）を有効化（`stderr` 出力）。Thread行は単一ゲージ（Insert=緑、Analyze-only=白、未処理=斑点） |
@@ -125,6 +127,19 @@ SoundAnalyzer.Cli.exe --window-size <len> --hop <len> --input-dir <path> --db-fi
 - 初期化時に `PRAGMA journal_mode=WAL` を試行します。
 - 環境やファイルシステム制約で WAL へ切り替えできない場合は既存ジャーナルモードで継続します。
 
+## SQLite 大量投入チューニング
+
+- STFT/Peak ともに内部で複数行 `INSERT ... VALUES (...), (...)` を使用します。
+- `--sqlite-batch-row-count` でバッチ行数を指定できます（既定 `512`）。
+  - SQLite の変数上限（`MAX_VARIABLE_NUMBER`）を超えないように自動クランプされます。
+- `--sqlite-fast-mode` 指定時は次の PRAGMA を追加適用します。
+  - `synchronous=OFF`
+  - `locking_mode=EXCLUSIVE`
+  - `temp_store=MEMORY`
+  - `cache_size=-262144`
+- `--sqlite-fast-mode` は速度優先モードです。異常終了時の耐障害性は低下するため、投入ジョブ専用DBでの運用を推奨します。
+- 新規テーブルかつ競合モード `Error` の場合は、投入完了時 (`Complete`) にユニーク/二次インデックスを後建てして挿入速度を優先します。
+
 ## 実行例
 
 ### peak-analysis
@@ -136,7 +151,7 @@ SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir /path/to/dir --d
 ### stft-analysis (ms基準)
 
 ```powershell
-SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir /path/to/dir --db-file /path/to/file.db --mode stft-analysis --bin-count 12 --stft-file-threads 2 --stft-proc-threads 6 --insert-queue-size 4096 --table-name-override T_STFT --upsert --recursive --delete-current --show-progress
+SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir /path/to/dir --db-file /path/to/file.db --mode stft-analysis --bin-count 12 --stft-file-threads 2 --stft-proc-threads 6 --insert-queue-size 4096 --sqlite-batch-row-count 512 --sqlite-fast-mode --table-name-override T_STFT --upsert --recursive --delete-current --show-progress
 ```
 
 ### stft-analysis (samples基準)
