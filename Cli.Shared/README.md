@@ -1,26 +1,28 @@
 # Cli.Shared
 
-## Role
-`Cli.Shared` provides reusable console presentation utilities for CLI projects in this solution.
+## 役割
+`Cli.Shared` は、このソリューション内の CLI プロジェクトで再利用するための
+コンソール表示ユーティリティを提供します。
 
-Current implementation includes:
+現在の実装には、次の機能が含まれます。
 
-- opt-in dual-line progress rendering
-- TTY-aware fallback to no-op renderer
-- stderr-targeted output to preserve stdout machine-readable payloads
+- `--progress` 指定時のみ有効化される 2 段プログレス表示
+- TTY 判定に基づく no-op 表示への自動フォールバック
+- `stdout` の機械可読出力を維持するための `stderr` への進捗出力
 
-## Main contracts
+## 主な契約
 
 - `IProgressDisplay`
 - `IProgressDisplayFactory`
 - `DualProgressState`
 
-## DI registration
+## DI 登録
 
-Register with:
+次の拡張メソッドで登録します。
 
 ```csharp
 services.AddCliShared();
 ```
 
-`IProgressDisplayFactory.Create(enabled)` returns a no-op display when progress is disabled or when no interactive TTY is available.
+`IProgressDisplayFactory.Create(enabled)` は、進捗表示が無効の場合、または
+対話的な TTY が利用できない場合に no-op 実装を返します。
