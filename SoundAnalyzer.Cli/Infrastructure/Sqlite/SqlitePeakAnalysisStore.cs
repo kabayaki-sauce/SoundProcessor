@@ -189,9 +189,9 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
             $"""
             CREATE TABLE IF NOT EXISTS {quotedTable} (
               "idx" INTEGER PRIMARY KEY AUTOINCREMENT,
-              "name" TEXT NOT NULL,
+              "audio_name" TEXT NOT NULL,
               "stem" TEXT NOT NULL,
-              "window" INTEGER NOT NULL,
+              "window_size" INTEGER NOT NULL,
               "ms" INTEGER NOT NULL,
               "db" REAL NOT NULL,
               "create_at" INTEGER NOT NULL,
@@ -216,11 +216,11 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
 
         string[] statements =
         {
-            BuildUniqueIndexStatement(safePrefix, quotedTable, "name", "stem", "window", "ms"),
-            BuildIndexStatement(safePrefix, "name", quotedTable, "name"),
-            BuildIndexStatement(safePrefix, "name_stem", quotedTable, "name", "stem"),
-            BuildIndexStatement(safePrefix, "name_ms", quotedTable, "name", "ms"),
-            BuildIndexStatement(safePrefix, "name_stem_ms", quotedTable, "name", "stem", "ms"),
+            BuildUniqueIndexStatement(safePrefix, quotedTable, "audio_name", "stem", "window_size", "ms"),
+            BuildIndexStatement(safePrefix, "audio_name", quotedTable, "audio_name"),
+            BuildIndexStatement(safePrefix, "audio_name_stem", quotedTable, "audio_name", "stem"),
+            BuildIndexStatement(safePrefix, "audio_name_ms", quotedTable, "audio_name", "ms"),
+            BuildIndexStatement(safePrefix, "audio_name_stem_ms", quotedTable, "audio_name", "stem", "ms"),
         };
 
         for (int i = 0; i < statements.Length; i++)
@@ -238,7 +238,7 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
         ArgumentException.ThrowIfNullOrWhiteSpace(quotedTable);
         ArgumentNullException.ThrowIfNull(columns);
 
-        string indexName = QuoteIdentifier(string.Create(CultureInfo.InvariantCulture, $"UX_{prefix}_name_stem_window_ms"));
+        string indexName = QuoteIdentifier(string.Create(CultureInfo.InvariantCulture, $"UX_{prefix}_audio_name_stem_window_size_ms"));
         string joinedColumns = string.Join(", ", columns.Select(column => QuoteIdentifier(column)));
 
         return string.Create(
@@ -309,14 +309,14 @@ internal sealed class SqlitePeakAnalysisStore : IPeakAnalysisStore
 
         string prefix = string.Create(
             CultureInfo.InvariantCulture,
-            $"INSERT INTO {quotedTable} (\"name\", \"stem\", \"window\", \"ms\", \"db\", \"create_at\", \"modified_at\") VALUES ");
+            $"INSERT INTO {quotedTable} (\"audio_name\", \"stem\", \"window_size\", \"ms\", \"db\", \"create_at\", \"modified_at\") VALUES ");
 
         string conflictClause = conflictMode switch
         {
             SqliteConflictMode.Upsert =>
-                " ON CONFLICT(\"name\", \"stem\", \"window\", \"ms\") DO UPDATE SET \"db\" = excluded.\"db\", \"modified_at\" = excluded.\"modified_at\"",
+                " ON CONFLICT(\"audio_name\", \"stem\", \"window_size\", \"ms\") DO UPDATE SET \"db\" = excluded.\"db\", \"modified_at\" = excluded.\"modified_at\"",
             SqliteConflictMode.SkipDuplicate =>
-                " ON CONFLICT(\"name\", \"stem\", \"window\", \"ms\") DO NOTHING",
+                " ON CONFLICT(\"audio_name\", \"stem\", \"window_size\", \"ms\") DO NOTHING",
             _ => string.Empty,
         };
 

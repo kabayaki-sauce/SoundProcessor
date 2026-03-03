@@ -12,14 +12,18 @@ public sealed class SqlitePeakAnalysisStoreTests
         string dbFilePath = CreateTempDbPath();
         try
         {
-            using (SqlitePeakAnalysisStore store = new(dbFilePath, "T_PeakAnalysis", SqliteConflictMode.Error))
+            using (SqlitePeakAnalysisStore store = new(dbFilePath, "t_peak", SqliteConflictMode.Error))
             {
                 store.Initialize();
                 store.Complete();
             }
 
             Assert.True(File.Exists(dbFilePath));
-            Assert.True(TableExists(dbFilePath, "T_PeakAnalysis"));
+            Assert.True(TableExists(dbFilePath, "t_peak"));
+            Assert.True(ColumnExists(dbFilePath, "t_peak", "audio_name"));
+            Assert.True(ColumnExists(dbFilePath, "t_peak", "window_size"));
+            Assert.False(ColumnExists(dbFilePath, "t_peak", "name"));
+            Assert.False(ColumnExists(dbFilePath, "t_peak", "window"));
         }
         finally
         {
@@ -38,32 +42,32 @@ public sealed class SqlitePeakAnalysisStoreTests
                 using SqliteCommand command = connection.CreateCommand();
                 command.CommandText =
                     """
-                    CREATE TABLE "T_PeakAnalysis" (
+                    CREATE TABLE "t_peak" (
                       "idx" INTEGER PRIMARY KEY AUTOINCREMENT,
-                      "name" TEXT NOT NULL,
+                      "audio_name" TEXT NOT NULL,
                       "stem" TEXT NOT NULL,
-                      "window" INTEGER NOT NULL,
+                      "window_size" INTEGER NOT NULL,
                       "ms" INTEGER NOT NULL,
                       "db" REAL NOT NULL,
                       "create_at" INTEGER NOT NULL,
                       "modified_at" INTEGER NOT NULL,
-                      UNIQUE("name", "stem", "window", "ms")
+                      UNIQUE("audio_name", "stem", "window_size", "ms")
                     );
                     """;
                 _ = command.ExecuteNonQuery();
             }
 
-            using (SqlitePeakAnalysisStore store = new(dbFilePath, "T_PeakAnalysis", SqliteConflictMode.Error))
+            using (SqlitePeakAnalysisStore store = new(dbFilePath, "t_peak", SqliteConflictMode.Error))
             {
                 store.Initialize();
                 store.Complete();
             }
 
             string[] indexNames = GetIndexNames(dbFilePath);
-            Assert.Contains("IX_T_PeakAnalysis_name", indexNames, StringComparer.Ordinal);
-            Assert.Contains("IX_T_PeakAnalysis_name_stem", indexNames, StringComparer.Ordinal);
-            Assert.Contains("IX_T_PeakAnalysis_name_ms", indexNames, StringComparer.Ordinal);
-            Assert.Contains("IX_T_PeakAnalysis_name_stem_ms", indexNames, StringComparer.Ordinal);
+            Assert.Contains("IX_t_peak_audio_name", indexNames, StringComparer.Ordinal);
+            Assert.Contains("IX_t_peak_audio_name_stem", indexNames, StringComparer.Ordinal);
+            Assert.Contains("IX_t_peak_audio_name_ms", indexNames, StringComparer.Ordinal);
+            Assert.Contains("IX_t_peak_audio_name_stem_ms", indexNames, StringComparer.Ordinal);
         }
         finally
         {
@@ -77,7 +81,7 @@ public sealed class SqlitePeakAnalysisStoreTests
         string dbFilePath = CreateTempDbPath();
         try
         {
-            using (SqlitePeakAnalysisStore store = new(dbFilePath, "T_PeakAnalysis", SqliteConflictMode.Error))
+            using (SqlitePeakAnalysisStore store = new(dbFilePath, "t_peak", SqliteConflictMode.Error))
             {
                 store.Initialize();
                 store.Complete();
@@ -100,7 +104,7 @@ public sealed class SqlitePeakAnalysisStoreTests
         {
             PeakAnalysisPoint point = new("Album", "Piano", 50, 10, -12.0);
 
-            using (SqlitePeakAnalysisStore store = new(dbFilePath, "T_PeakAnalysis", SqliteConflictMode.Upsert))
+            using (SqlitePeakAnalysisStore store = new(dbFilePath, "t_peak", SqliteConflictMode.Upsert))
             {
                 store.Initialize();
                 store.Write(point);
@@ -113,7 +117,7 @@ public sealed class SqlitePeakAnalysisStoreTests
                 TimeSpan.FromMilliseconds(200));
 
             PeakAnalysisPoint updatedPoint = new("Album", "Piano", 50, 10, -6.0);
-            using (SqlitePeakAnalysisStore store = new(dbFilePath, "T_PeakAnalysis", SqliteConflictMode.Upsert))
+            using (SqlitePeakAnalysisStore store = new(dbFilePath, "t_peak", SqliteConflictMode.Upsert))
             {
                 store.Initialize();
                 store.Write(updatedPoint);
@@ -142,7 +146,7 @@ public sealed class SqlitePeakAnalysisStoreTests
         {
             PeakAnalysisPoint point = new("Album", "Piano", 50, 10, -12.0);
 
-            using (SqlitePeakAnalysisStore store = new(dbFilePath, "T_PeakAnalysis", SqliteConflictMode.SkipDuplicate))
+            using (SqlitePeakAnalysisStore store = new(dbFilePath, "t_peak", SqliteConflictMode.SkipDuplicate))
             {
                 store.Initialize();
                 store.Write(point);
@@ -166,7 +170,7 @@ public sealed class SqlitePeakAnalysisStoreTests
         {
             using (SqlitePeakAnalysisStore store = new(
                        dbFilePath,
-                       "T_PeakAnalysis",
+                       "t_peak",
                        SqliteConflictMode.Error,
                        writeOptions: new SqliteWriteOptions(fastMode: false, batchRowCount: 3)))
             {
@@ -196,7 +200,7 @@ public sealed class SqlitePeakAnalysisStoreTests
             PeakAnalysisPoint point = new("Album", "Piano", 50, 10, -12.0);
             using SqlitePeakAnalysisStore store = new(
                 dbFilePath,
-                "T_PeakAnalysis",
+                "t_peak",
                 SqliteConflictMode.Error,
                 writeOptions: new SqliteWriteOptions(fastMode: false, batchRowCount: 8));
 
@@ -235,6 +239,19 @@ public sealed class SqlitePeakAnalysisStoreTests
         return scalar is long count && count > 0;
     }
 
+    private static bool ColumnExists(string dbFilePath, string tableName, string columnName)
+    {
+        using SqliteConnection connection = OpenConnection(dbFilePath);
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT COUNT(1) FROM pragma_table_info($table_name) WHERE lower(name) = lower($column_name);";
+        _ = command.Parameters.AddWithValue("$table_name", tableName);
+        _ = command.Parameters.AddWithValue("$column_name", columnName);
+
+        object? scalar = command.ExecuteScalar();
+        return scalar is long count && count > 0;
+    }
+
     private static string[] GetIndexNames(string dbFilePath)
     {
         using SqliteConnection connection = OpenConnection(dbFilePath);
@@ -256,7 +273,7 @@ public sealed class SqlitePeakAnalysisStoreTests
         using SqliteConnection connection = OpenConnection(dbFilePath);
         using SqliteCommand command = connection.CreateCommand();
         command.CommandText =
-            "SELECT create_at, modified_at, db FROM \"T_PeakAnalysis\" WHERE name = 'Album' AND stem = 'Piano' AND window = 50 AND ms = 10;";
+            "SELECT create_at, modified_at, db FROM \"t_peak\" WHERE audio_name = 'Album' AND stem = 'Piano' AND window_size = 50 AND ms = 10;";
 
         using SqliteDataReader reader = command.ExecuteReader();
         Assert.True(reader.Read());
@@ -271,7 +288,7 @@ public sealed class SqlitePeakAnalysisStoreTests
     {
         using SqliteConnection connection = OpenConnection(dbFilePath);
         using SqliteCommand command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(1) FROM \"T_PeakAnalysis\";";
+        command.CommandText = "SELECT COUNT(1) FROM \"t_peak\";";
         object? scalar = command.ExecuteScalar();
         return scalar is long count ? count : 0;
     }

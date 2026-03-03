@@ -317,7 +317,7 @@ public sealed class PostgresStftAnalysisStoreTests
         using NpgsqlCommand command = connection.CreateCommand();
         command.CommandText = string.Create(
             CultureInfo.InvariantCulture,
-            $"SELECT \"db\" FROM {QuoteIdentifier(tableName)} WHERE \"name\"='SongA' AND \"ch\"=0 AND \"window\"=50 AND \"ms\"=10 AND \"bin_no\"=@bin_no;");
+            $"SELECT \"db\" FROM {QuoteIdentifier(tableName)} WHERE \"audio_name\"='SongA' AND \"ch\"=0 AND \"window_size\"=50 AND \"ms\"=10 AND \"bin_no\"=@bin_no;");
         _ = command.Parameters.AddWithValue("@bin_no", binNo);
         object? scalar = command.ExecuteScalar();
         return scalar is double value ? value : 0.0;

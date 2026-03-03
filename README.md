@@ -87,7 +87,7 @@ dotnet run --project SoundAnalyzer.Cli -- \
   --db-file /path/to/file.db \
   --mode peak-analysis \
   --stems Piano,Drums,Vocals \
-  --table-name-override T_PEAK \
+  --table-name-override t_peak \
   --upsert
 ```
 
@@ -101,7 +101,7 @@ dotnet run --project SoundAnalyzer.Cli -- \
   --db-file /path/to/file.db \
   --mode stft-analysis \
   --bin-count 12 \
-  --table-name-override T_STFT \
+  --table-name-override t_stft \
   --upsert \
   --recursive
 ```

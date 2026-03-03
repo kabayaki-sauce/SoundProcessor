@@ -48,8 +48,8 @@ internal static class ConsoleTexts
     public const string PeakAnalysisMode = "peak-analysis";
     public const string StftAnalysisMode = "stft-analysis";
 
-    public const string DefaultPeakTableName = "T_PeakAnalysis";
-    public const string DefaultStftTableName = "T_STFTAnalysis";
+    public const string DefaultPeakTableName = "t_peak";
+    public const string DefaultStftTableName = "t_stft";
 
     public const string HelpText =
 """
@@ -95,7 +95,7 @@ PostgreSQL connection options (required with --postgres):
 Optional:
   --target-sampling <n>hz   Required when window/hop uses sample(s) in stft mode
   --stems <csv>             Peak mode only. Stem names to analyze (case-insensitive)
-  --table-name-override <n> Override table name (default: peak=T_PeakAnalysis, stft=T_STFTAnalysis)
+  --table-name-override <n> Override table name (default: peak=t_peak, stft=t_stft)
   --upsert                  Upsert by unique key
   --skip-duplicate          Skip duplicates by unique key
   --min-limit-db <dB>       Clamp lower dB bound for all windows/bins (default: -120.0)

@@ -300,9 +300,9 @@ internal sealed class PostgresStftAnalysisStore : IStftAnalysisStore
             $"""
             CREATE TABLE IF NOT EXISTS {quotedTable} (
               "idx" BIGSERIAL PRIMARY KEY,
-              "name" TEXT NOT NULL,
+              "audio_name" TEXT NOT NULL,
               "ch" INTEGER NOT NULL,
-              "window" BIGINT NOT NULL,
+              "window_size" BIGINT NOT NULL,
               {quotedAnchor} BIGINT NOT NULL,
               "bin_no" INTEGER NOT NULL,
               "db" DOUBLE PRECISION NOT NULL,
@@ -335,11 +335,18 @@ internal sealed class PostgresStftAnalysisStore : IStftAnalysisStore
         string[] statements =
         {
             BuildUniqueIndexStatement(safePrefix, anchorSuffix, quotedTable, anchorColumnName),
-            BuildIndexStatement(safePrefix, "name", quotedTable, "name"),
-            BuildIndexStatement(safePrefix, "name_ch", quotedTable, "name", "ch"),
-            BuildIndexStatement(safePrefix, string.Create(CultureInfo.InvariantCulture, $"name_{anchorSuffix}"), quotedTable, "name", anchorColumnName),
-            BuildIndexStatement(safePrefix, string.Create(CultureInfo.InvariantCulture, $"name_ch_{anchorSuffix}"), quotedTable, "name", "ch", anchorColumnName),
-            BuildIndexStatement(safePrefix, string.Create(CultureInfo.InvariantCulture, $"point_{anchorSuffix}"), quotedTable, "name", "ch", "window", anchorColumnName),
+            BuildIndexStatement(safePrefix, "audio_name", quotedTable, "audio_name"),
+            BuildIndexStatement(safePrefix, "audio_name_ch", quotedTable, "audio_name", "ch"),
+            BuildIndexStatement(safePrefix, string.Create(CultureInfo.InvariantCulture, $"audio_name_{anchorSuffix}"), quotedTable, "audio_name", anchorColumnName),
+            BuildIndexStatement(safePrefix, string.Create(CultureInfo.InvariantCulture, $"audio_name_ch_{anchorSuffix}"), quotedTable, "audio_name", "ch", anchorColumnName),
+            BuildIndexStatement(
+                safePrefix,
+                string.Create(CultureInfo.InvariantCulture, $"audio_name_ch_window_size_{anchorSuffix}"),
+                quotedTable,
+                "audio_name",
+                "ch",
+                "window_size",
+                anchorColumnName),
         };
 
         for (int i = 0; i < statements.Length; i++)
@@ -365,12 +372,12 @@ internal sealed class PostgresStftAnalysisStore : IStftAnalysisStore
         string indexName = QuoteIdentifier(
             string.Create(
                 CultureInfo.InvariantCulture,
-                $"UX_{prefix}_name_ch_window_{anchorSuffix}_bin_no"));
+                $"UX_{prefix}_audio_name_ch_window_size_{anchorSuffix}_bin_no"));
         string joinedColumns = string.Join(
             ", ",
-            QuoteIdentifier("name"),
+            QuoteIdentifier("audio_name"),
             QuoteIdentifier("ch"),
-            QuoteIdentifier("window"),
+            QuoteIdentifier("window_size"),
             QuoteIdentifier(anchorColumnName),
             QuoteIdentifier("bin_no"));
 
@@ -445,10 +452,10 @@ internal sealed class PostgresStftAnalysisStore : IStftAnalysisStore
         string quotedAnchor = QuoteIdentifier(anchorColumnName);
         string prefix = string.Create(
             CultureInfo.InvariantCulture,
-            $"INSERT INTO {quotedTable} (\"name\", \"ch\", \"window\", {quotedAnchor}, \"bin_no\", \"db\", \"create_at\", \"modified_at\") VALUES ");
+            $"INSERT INTO {quotedTable} (\"audio_name\", \"ch\", \"window_size\", {quotedAnchor}, \"bin_no\", \"db\", \"create_at\", \"modified_at\") VALUES ");
         string conflictColumns = string.Create(
             CultureInfo.InvariantCulture,
-            $"\"name\", \"ch\", \"window\", {quotedAnchor}, \"bin_no\"");
+            $"\"audio_name\", \"ch\", \"window_size\", {quotedAnchor}, \"bin_no\"");
         string conflictClause = conflictMode switch
         {
             SqliteConflictMode.Upsert => string.Concat(
@@ -498,9 +505,9 @@ internal sealed class PostgresStftAnalysisStore : IStftAnalysisStore
 
             return hasExpectedAnchor
                 && HasColumn("idx")
-                && HasColumn("name")
+                && HasColumn("audio_name")
                 && HasColumn("ch")
-                && HasColumn("window")
+                && HasColumn("window_size")
                 && HasColumn("bin_no")
                 && HasColumn("db")
                 && HasColumn("create_at")

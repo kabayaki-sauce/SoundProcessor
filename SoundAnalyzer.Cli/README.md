@@ -106,7 +106,7 @@ dotnet SoundAnalyzer.Cli.dll --window-size <len> --hop <len> --input-dir <path> 
 - `--bin-count` は `nextPow2(windowSamples)/2 + 1` を上限とします。
 - `windowSamples` は最終的に解析時サンプルレート基準で評価されます。
 
-既定テーブル名: `T_STFTAnalysis`  
+既定テーブル名: `t_stft`  
 既定モード文字列: `stft-analysis`
 
 ## 解析対象ファイルの解決
@@ -129,26 +129,26 @@ dotnet SoundAnalyzer.Cli.dll --window-size <len> --hop <len> --input-dir <path> 
 
 ### `peak-analysis`
 
-既定テーブル: `T_PeakAnalysis`
+既定テーブル: `t_peak`
 
-- 列: `idx`, `name`, `stem`, `window`, `ms`, `db`, `create_at`, `modified_at`
-- 一意制約: `(name, stem, window, ms)`
-- インデックス: `(name)`, `(name, stem)`, `(name, ms)`, `(name, stem, ms)`
+- 列: `idx`, `audio_name`, `stem`, `window_size`, `ms`, `db`, `create_at`, `modified_at`
+- 一意制約: `(audio_name, stem, window_size, ms)`
+- インデックス: `(audio_name)`, `(audio_name, stem)`, `(audio_name, ms)`, `(audio_name, stem, ms)`
 
 ### `stft-analysis`
 
-既定テーブル: `T_STFTAnalysis`
+既定テーブル: `t_stft`
 
 - STFT bin は縦持ちで保存されます（1行 = 1bin）
-- `window` 列には入力指定値を保存します
+- `window_size` 列には入力指定値を保存します
 - hop が `ms/s/m` 指定のとき:
-  - 列: `idx`, `name`, `ch`, `window`, `ms`, `bin_no`, `db`, `create_at`, `modified_at`
-  - 一意制約: `(name, ch, window, ms, bin_no)`
-  - インデックス: `(name)`, `(name, ch)`, `(name, ms)`, `(name, ch, ms)`, `(name, ch, window, ms)`
+  - 列: `idx`, `audio_name`, `ch`, `window_size`, `ms`, `bin_no`, `db`, `create_at`, `modified_at`
+  - 一意制約: `(audio_name, ch, window_size, ms, bin_no)`
+  - インデックス: `(audio_name)`, `(audio_name, ch)`, `(audio_name, ms)`, `(audio_name, ch, ms)`, `(audio_name, ch, window_size, ms)`
 - hop が `sample/samples` 指定のとき:
-  - 列: `idx`, `name`, `ch`, `window`, `sample`, `bin_no`, `db`, `create_at`, `modified_at`
-  - 一意制約: `(name, ch, window, sample, bin_no)`
-  - インデックス: `(name)`, `(name, ch)`, `(name, sample)`, `(name, ch, sample)`, `(name, ch, window, sample)`
+  - 列: `idx`, `audio_name`, `ch`, `window_size`, `sample`, `bin_no`, `db`, `create_at`, `modified_at`
+  - 一意制約: `(audio_name, ch, window_size, sample, bin_no)`
+  - インデックス: `(audio_name)`, `(audio_name, ch)`, `(audio_name, sample)`, `(audio_name, ch, sample)`, `(audio_name, ch, window_size, sample)`
 
 `--delete-current` 未指定時は、既存テーブルの次を検証し不一致なら失敗します。
 
@@ -160,10 +160,10 @@ dotnet SoundAnalyzer.Cli.dll --window-size <len> --hop <len> --input-dir <path> 
 
 ## PostgreSQL スキーマ
 
-- SQLite と同じ論理列を維持します（Peak: `idx,name,stem,window,ms,db,create_at,modified_at` / STFT: `idx,name,ch,window,ms|sample,bin_no,db,create_at,modified_at`）。
+- SQLite と同じ論理列を維持します（Peak: `idx,audio_name,stem,window_size,ms,db,create_at,modified_at` / STFT: `idx,audio_name,ch,window_size,ms|sample,bin_no,db,create_at,modified_at`）。
 - 競合モードは SQLite と同等です（Error / Upsert / SkipDuplicate）。
 - 既存テーブル時の STFT スキーマ検証 / bin-count 検証 / `--delete-current` 挙動は SQLite と同等です。
-- インデックスは SQLite 相当を基本とし、STFT では PostgreSQL 向けに `(name, ch, window, anchor)` 補助インデックスを明示作成します。
+- インデックスは SQLite 相当を基本とし、STFT では PostgreSQL 向けに `(audio_name, ch, window_size, anchor)` 補助インデックスを明示作成します。
 - PostgreSQL 側も複数行 `INSERT ... VALUES` バッチで挿入します（`--postgres-batch-row-count` 既定 `1`）。
   - PostgreSQL のパラメータ上限（`65535`）を超えないように自動クランプされます。
 
@@ -196,13 +196,13 @@ dotnet SoundAnalyzer.Cli.dll --window-size <len> --hop <len> --input-dir <path> 
 ### peak-analysis
 
 ```powershell
-SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir /path/to/dir --db-file /path/to/file.db --mode peak-analysis --stems Piano,Drums,Vocals --peak-file-threads 2 --peak-proc-threads 4 --insert-queue-size 2048 --table-name-override T_PEAK --upsert --show-progress
+SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir /path/to/dir --db-file /path/to/file.db --mode peak-analysis --stems Piano,Drums,Vocals --peak-file-threads 2 --peak-proc-threads 4 --insert-queue-size 2048 --table-name-override t_peak --upsert --show-progress
 ```
 
 ### stft-analysis (ms基準)
 
 ```powershell
-SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir /path/to/dir --db-file /path/to/file.db --mode stft-analysis --bin-count 12 --stft-file-threads 2 --stft-proc-threads 6 --insert-queue-size 4096 --sqlite-batch-row-count 512 --sqlite-fast-mode --table-name-override T_STFT --upsert --recursive --delete-current --show-progress
+SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir /path/to/dir --db-file /path/to/file.db --mode stft-analysis --bin-count 12 --stft-file-threads 2 --stft-proc-threads 6 --insert-queue-size 4096 --sqlite-batch-row-count 512 --sqlite-fast-mode --table-name-override t_stft --upsert --recursive --delete-current --show-progress
 ```
 
 ### stft-analysis (samples基準)
@@ -220,7 +220,7 @@ dotnet SoundAnalyzer.Cli.dll --window-size 2048samples --hop 512samples --target
 ### PostgreSQL 実行例（Windows, password 認証）
 
 ```powershell
-SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir C:\audio\split --mode stft-analysis --bin-count 24 --postgres --postgres-host 127.0.0.1 --postgres-port 5432 --postgres-db audio --postgres-user analyzer --postgres-password secret --postgres-batch-row-count 512 --table-name-override T_STFT --upsert --show-progress
+SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir C:\audio\split --mode stft-analysis --bin-count 24 --postgres --postgres-host 127.0.0.1 --postgres-port 5432 --postgres-db audio --postgres-user analyzer --postgres-password secret --postgres-batch-row-count 512 --table-name-override t_stft --upsert --show-progress
 ```
 
 ### PostgreSQL 実行例（Linux, SSH トンネル）

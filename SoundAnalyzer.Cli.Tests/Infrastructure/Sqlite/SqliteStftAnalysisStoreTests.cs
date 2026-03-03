@@ -15,7 +15,7 @@ public sealed class SqliteStftAnalysisStoreTests
         {
             using (SqliteStftAnalysisStore store = new(
                        dbFilePath,
-                       "T_STFTAnalysis",
+                       "t_stft",
                        "ms",
                        SqliteConflictMode.Error,
                        binCount: 12,
@@ -26,11 +26,15 @@ public sealed class SqliteStftAnalysisStoreTests
             }
 
             Assert.True(File.Exists(dbFilePath));
-            Assert.True(TableExists(dbFilePath, "T_STFTAnalysis"));
-            Assert.True(ColumnExists(dbFilePath, "T_STFTAnalysis", "ms"));
-            Assert.False(ColumnExists(dbFilePath, "T_STFTAnalysis", "sample"));
-            Assert.True(ColumnExists(dbFilePath, "T_STFTAnalysis", "bin_no"));
-            Assert.True(ColumnExists(dbFilePath, "T_STFTAnalysis", "db"));
+            Assert.True(TableExists(dbFilePath, "t_stft"));
+            Assert.True(ColumnExists(dbFilePath, "t_stft", "audio_name"));
+            Assert.True(ColumnExists(dbFilePath, "t_stft", "window_size"));
+            Assert.True(ColumnExists(dbFilePath, "t_stft", "ms"));
+            Assert.False(ColumnExists(dbFilePath, "t_stft", "sample"));
+            Assert.False(ColumnExists(dbFilePath, "t_stft", "name"));
+            Assert.False(ColumnExists(dbFilePath, "t_stft", "window"));
+            Assert.True(ColumnExists(dbFilePath, "t_stft", "bin_no"));
+            Assert.True(ColumnExists(dbFilePath, "t_stft", "db"));
             Assert.Equal(0, CountLegacyWideBinColumns(dbFilePath));
         }
         finally
@@ -47,7 +51,7 @@ public sealed class SqliteStftAnalysisStoreTests
         {
             using (SqliteStftAnalysisStore store = new(
                        dbFilePath,
-                       "T_STFTAnalysis",
+                       "t_stft",
                        "sample",
                        SqliteConflictMode.Error,
                        binCount: 12,
@@ -57,10 +61,14 @@ public sealed class SqliteStftAnalysisStoreTests
                 store.Complete();
             }
 
-            Assert.True(ColumnExists(dbFilePath, "T_STFTAnalysis", "sample"));
-            Assert.False(ColumnExists(dbFilePath, "T_STFTAnalysis", "ms"));
-            Assert.True(ColumnExists(dbFilePath, "T_STFTAnalysis", "bin_no"));
-            Assert.True(ColumnExists(dbFilePath, "T_STFTAnalysis", "db"));
+            Assert.True(ColumnExists(dbFilePath, "t_stft", "audio_name"));
+            Assert.True(ColumnExists(dbFilePath, "t_stft", "window_size"));
+            Assert.True(ColumnExists(dbFilePath, "t_stft", "sample"));
+            Assert.False(ColumnExists(dbFilePath, "t_stft", "ms"));
+            Assert.False(ColumnExists(dbFilePath, "t_stft", "name"));
+            Assert.False(ColumnExists(dbFilePath, "t_stft", "window"));
+            Assert.True(ColumnExists(dbFilePath, "t_stft", "bin_no"));
+            Assert.True(ColumnExists(dbFilePath, "t_stft", "db"));
             Assert.Equal(0, CountLegacyWideBinColumns(dbFilePath));
         }
         finally
@@ -77,7 +85,7 @@ public sealed class SqliteStftAnalysisStoreTests
         {
             using (SqliteStftAnalysisStore first = new(
                        dbFilePath,
-                       "T_STFTAnalysis",
+                       "t_stft",
                        "ms",
                        SqliteConflictMode.Error,
                        binCount: 8,
@@ -90,7 +98,7 @@ public sealed class SqliteStftAnalysisStoreTests
 
             using SqliteStftAnalysisStore second = new(
                 dbFilePath,
-                "T_STFTAnalysis",
+                "t_stft",
                 "ms",
                 SqliteConflictMode.Error,
                 binCount: 12,
@@ -113,7 +121,7 @@ public sealed class SqliteStftAnalysisStoreTests
         {
             using (SqliteStftAnalysisStore first = new(
                        dbFilePath,
-                       "T_STFTAnalysis",
+                       "t_stft",
                        "ms",
                        SqliteConflictMode.Error,
                        binCount: 4,
@@ -125,7 +133,7 @@ public sealed class SqliteStftAnalysisStoreTests
 
             using SqliteStftAnalysisStore second = new(
                 dbFilePath,
-                "T_STFTAnalysis",
+                "t_stft",
                 "sample",
                 SqliteConflictMode.Error,
                 binCount: 4,
@@ -150,7 +158,7 @@ public sealed class SqliteStftAnalysisStoreTests
 
             using SqliteStftAnalysisStore store = new(
                 dbFilePath,
-                "T_STFTAnalysis",
+                "t_stft",
                 "ms",
                 SqliteConflictMode.Error,
                 binCount: 2,
@@ -175,7 +183,7 @@ public sealed class SqliteStftAnalysisStoreTests
         {
             using (SqliteStftAnalysisStore store = new(
                        dbFilePath,
-                       "T_STFTAnalysis",
+                       "t_stft",
                        "ms",
                        SqliteConflictMode.Error,
                        binCount: 12,
@@ -202,7 +210,7 @@ public sealed class SqliteStftAnalysisStoreTests
         {
             using (SqliteStftAnalysisStore first = new(
                        dbFilePath,
-                       "T_STFTAnalysis",
+                       "t_stft",
                        "ms",
                        SqliteConflictMode.Error,
                        binCount: 8,
@@ -214,7 +222,7 @@ public sealed class SqliteStftAnalysisStoreTests
 
             using (SqliteStftAnalysisStore second = new(
                        dbFilePath,
-                       "T_STFTAnalysis",
+                       "t_stft",
                        "sample",
                        SqliteConflictMode.Error,
                        binCount: 12,
@@ -224,9 +232,13 @@ public sealed class SqliteStftAnalysisStoreTests
                 second.Complete();
             }
 
-            Assert.True(ColumnExists(dbFilePath, "T_STFTAnalysis", "sample"));
-            Assert.True(ColumnExists(dbFilePath, "T_STFTAnalysis", "bin_no"));
-            Assert.True(ColumnExists(dbFilePath, "T_STFTAnalysis", "db"));
+            Assert.True(ColumnExists(dbFilePath, "t_stft", "audio_name"));
+            Assert.True(ColumnExists(dbFilePath, "t_stft", "window_size"));
+            Assert.True(ColumnExists(dbFilePath, "t_stft", "sample"));
+            Assert.True(ColumnExists(dbFilePath, "t_stft", "bin_no"));
+            Assert.True(ColumnExists(dbFilePath, "t_stft", "db"));
+            Assert.False(ColumnExists(dbFilePath, "t_stft", "name"));
+            Assert.False(ColumnExists(dbFilePath, "t_stft", "window"));
             Assert.Equal(0, CountLegacyWideBinColumns(dbFilePath));
         }
         finally
@@ -245,7 +257,7 @@ public sealed class SqliteStftAnalysisStoreTests
 
             using (SqliteStftAnalysisStore store = new(
                        dbFilePath,
-                       "T_STFTAnalysis",
+                       "t_stft",
                        "ms",
                        SqliteConflictMode.Upsert,
                        binCount: 4,
@@ -264,7 +276,7 @@ public sealed class SqliteStftAnalysisStoreTests
             StftAnalysisPoint updatedPoint = new("Song", 0, 50, 10, CreateBins(4, -3));
             using (SqliteStftAnalysisStore store = new(
                        dbFilePath,
-                       "T_STFTAnalysis",
+                       "t_stft",
                        "ms",
                        SqliteConflictMode.Upsert,
                        binCount: 4,
@@ -299,7 +311,7 @@ public sealed class SqliteStftAnalysisStoreTests
 
             using (SqliteStftAnalysisStore store = new(
                        dbFilePath,
-                       "T_STFTAnalysis",
+                       "t_stft",
                        "sample",
                        SqliteConflictMode.SkipDuplicate,
                        binCount: 4,
@@ -331,7 +343,7 @@ public sealed class SqliteStftAnalysisStoreTests
 
             using (SqliteStftAnalysisStore store = new(
                        dbFilePath,
-                       "T_STFTAnalysis",
+                       "t_stft",
                        "sample",
                        SqliteConflictMode.Error,
                        binCount: binCount,
@@ -363,7 +375,7 @@ public sealed class SqliteStftAnalysisStoreTests
 
             using (SqliteStftAnalysisStore store = new(
                        dbFilePath,
-                       "T_STFTAnalysis",
+                       "t_stft",
                        "sample",
                        SqliteConflictMode.Error,
                        binCount: binCount,
@@ -394,7 +406,7 @@ public sealed class SqliteStftAnalysisStoreTests
 
             using SqliteStftAnalysisStore store = new(
                 dbFilePath,
-                "T_STFTAnalysis",
+                "t_stft",
                 "ms",
                 SqliteConflictMode.Error,
                 binCount: 4,
@@ -419,7 +431,7 @@ public sealed class SqliteStftAnalysisStoreTests
         using SqliteCommand command = connection.CreateCommand();
         command.CommandText =
             $"""
-            CREATE TABLE "T_STFTAnalysis" (
+            CREATE TABLE "t_stft" (
               "idx" INTEGER PRIMARY KEY AUTOINCREMENT,
               "name" TEXT NOT NULL,
               "ch" INTEGER NOT NULL,
@@ -486,7 +498,7 @@ public sealed class SqliteStftAnalysisStoreTests
     {
         using SqliteConnection connection = OpenConnection(dbFilePath);
         using SqliteCommand command = connection.CreateCommand();
-        command.CommandText = "PRAGMA table_info(\"T_STFTAnalysis\");";
+        command.CommandText = "PRAGMA table_info(\"t_stft\");";
 
         int count = 0;
         using SqliteDataReader reader = command.ExecuteReader();
@@ -515,8 +527,8 @@ public sealed class SqliteStftAnalysisStoreTests
         using SqliteConnection connection = OpenConnection(dbFilePath);
         using SqliteCommand command = connection.CreateCommand();
         command.CommandText = anchorColumnName.Equals("sample", StringComparison.OrdinalIgnoreCase)
-            ? "SELECT create_at, modified_at, db FROM \"T_STFTAnalysis\" WHERE name = 'Song' AND ch = 0 AND window = 50 AND sample = $anchor AND bin_no = $bin_no;"
-            : "SELECT create_at, modified_at, db FROM \"T_STFTAnalysis\" WHERE name = 'Song' AND ch = 0 AND window = 50 AND ms = $anchor AND bin_no = $bin_no;";
+            ? "SELECT create_at, modified_at, db FROM \"t_stft\" WHERE audio_name = 'Song' AND ch = 0 AND window_size = 50 AND sample = $anchor AND bin_no = $bin_no;"
+            : "SELECT create_at, modified_at, db FROM \"t_stft\" WHERE audio_name = 'Song' AND ch = 0 AND window_size = 50 AND ms = $anchor AND bin_no = $bin_no;";
         _ = command.Parameters.AddWithValue("$anchor", anchorValue);
         _ = command.Parameters.AddWithValue("$bin_no", binNo);
 
@@ -534,7 +546,7 @@ public sealed class SqliteStftAnalysisStoreTests
     {
         using SqliteConnection connection = OpenConnection(dbFilePath);
         using SqliteCommand command = connection.CreateCommand();
-        command.CommandText = "SELECT COALESCE(MAX(bin_no), 0) FROM \"T_STFTAnalysis\";";
+        command.CommandText = "SELECT COALESCE(MAX(bin_no), 0) FROM \"t_stft\";";
         object? scalar = command.ExecuteScalar();
         return scalar is long value ? checked((int)value) : 0;
     }
@@ -543,7 +555,7 @@ public sealed class SqliteStftAnalysisStoreTests
     {
         using SqliteConnection connection = OpenConnection(dbFilePath);
         using SqliteCommand command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(1) FROM \"T_STFTAnalysis\";";
+        command.CommandText = "SELECT COUNT(1) FROM \"t_stft\";";
         object? scalar = command.ExecuteScalar();
         return scalar is long count ? count : 0;
     }
@@ -601,3 +613,4 @@ public sealed class SqliteStftAnalysisStoreTests
         }
     }
 }
+

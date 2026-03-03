@@ -189,7 +189,7 @@ public sealed class PostgresPeakAnalysisStoreTests
         using NpgsqlCommand command = connection.CreateCommand();
         command.CommandText = string.Create(
             CultureInfo.InvariantCulture,
-            $"SELECT \"db\" FROM {QuoteIdentifier(tableName)} WHERE \"name\"='SongA' AND \"stem\"='Piano' AND \"window\"=50 AND \"ms\"=10;");
+            $"SELECT \"db\" FROM {QuoteIdentifier(tableName)} WHERE \"audio_name\"='SongA' AND \"stem\"='Piano' AND \"window_size\"=50 AND \"ms\"=10;");
         object? scalar = command.ExecuteScalar();
         return scalar is double value ? value : 0.0;
     }
