@@ -16,11 +16,18 @@ internal static class ConsoleTexts
     public const string SkipDuplicateOption = "--skip-duplicate";
     public const string MinLimitDbOption = "--min-limit-db";
     public const string BinCountOption = "--bin-count";
+    public const string MelBinCountOption = "--mel-bin-count";
+    public const string MelFminHzOption = "--mel-fmin-hz";
+    public const string MelFmaxHzOption = "--mel-fmax-hz";
+    public const string MelScaleOption = "--mel-scale";
+    public const string MelPowerOption = "--mel-power";
     public const string DeleteCurrentOption = "--delete-current";
     public const string RecursiveOption = "--recursive";
     public const string StftProcThreadsOption = "--stft-proc-threads";
+    public const string MelProcThreadsOption = "--mel-proc-threads";
     public const string PeakProcThreadsOption = "--peak-proc-threads";
     public const string StftFileThreadsOption = "--stft-file-threads";
+    public const string MelFileThreadsOption = "--mel-file-threads";
     public const string PeakFileThreadsOption = "--peak-file-threads";
     public const string InsertQueueSizeOption = "--insert-queue-size";
     public const string SqliteFastModeOption = "--sqlite-fast-mode";
@@ -47,20 +54,28 @@ internal static class ConsoleTexts
 
     public const string PeakAnalysisMode = "peak-analysis";
     public const string StftAnalysisMode = "stft-analysis";
+    public const string MelSpectrogramAnalysisMode = "mel-spectrogram-analysis";
 
     public const string DefaultPeakTableName = "t_peak";
     public const string DefaultStftTableName = "t_stft";
+    public const string DefaultMelTableName = "t_mel_spectrogram";
+
+    public const int DefaultMelBinCount = 80;
+    public const double DefaultMelFminHz = 20.0;
+    public const double DefaultMelFmaxHz = 22050.0;
+    public const string DefaultMelScale = "slaney";
+    public const int DefaultMelPower = 2;
 
     public const string HelpText =
 """
 Usage:
-  SoundAnalyzer.Cli.exe --window-size <len> --hop <len> --input-dir <path> --mode <peak-analysis|stft-analysis> [--db-file <path> | --postgres ...] [options]
+  SoundAnalyzer.Cli.exe --window-size <len> --hop <len> --input-dir <path> --mode <peak-analysis|stft-analysis|mel-spectrogram-analysis> [--db-file <path> | --postgres ...] [options]
 
 Required options:
   --window-size <len>       Analysis window size (ms/s/m/sample/samples)
   --hop <len>               Hop size (ms/s/m/sample/samples)
   --input-dir <path>        Input root directory
-  --mode <value>            peak-analysis or stft-analysis
+  --mode <value>            peak-analysis or stft-analysis or mel-spectrogram-analysis
 
 Storage backend:
   (default: SQLite)
@@ -93,18 +108,25 @@ PostgreSQL connection options (required with --postgres):
                             PostgreSQL mode only. Multi-row INSERT batch size (default: 1)
 
 Optional:
-  --target-sampling <n>hz   Required when window/hop uses sample(s) in stft mode
+  --target-sampling <n>hz   Required when window/hop uses sample(s) in stft/mel mode
   --stems <csv>             Peak mode only. Stem names to analyze (case-insensitive)
-  --table-name-override <n> Override table name (default: peak=t_peak, stft=t_stft)
+  --table-name-override <n> Override table name (default: peak=t_peak, stft=t_stft, mel=t_mel_spectrogram)
   --upsert                  Upsert by unique key
   --skip-duplicate          Skip duplicates by unique key
   --min-limit-db <dB>       Clamp lower dB bound for all windows/bins (default: -120.0)
   --bin-count <n>           STFT mode only. Number of output bands (required in stft-analysis)
-  --delete-current          STFT mode only. Drop current table before processing
-  --recursive               STFT mode only. Scan files recursively from input-dir
+  --mel-bin-count <n>       Mel mode only. Number of mel bands (default: 80)
+  --mel-fmin-hz <n>         Mel mode only. Minimum mel frequency in Hz (default: 20)
+  --mel-fmax-hz <n>         Mel mode only. Maximum mel frequency in Hz (default: 22050)
+  --mel-scale <value>       Mel mode only. slaney or htk (default: slaney)
+  --mel-power <n>           Mel mode only. 1=magnitude, 2=power (default: 2)
+  --delete-current          STFT/Mel mode only. Drop current table before processing
+  --recursive               STFT/Mel mode only. Scan files recursively from input-dir
   --stft-proc-threads <n>   STFT mode only. Processing threads per file (default: 1)
+  --mel-proc-threads <n>    Mel mode only. Processing threads per file (default: 1)
   --peak-proc-threads <n>   Peak mode only. Processing threads per song (default: 1)
   --stft-file-threads <n>   STFT mode only. Number of files analyzed in parallel (default: 1)
+  --mel-file-threads <n>    Mel mode only. Number of files analyzed in parallel (default: 1)
   --peak-file-threads <n>   Peak mode only. Number of songs analyzed in parallel (default: 1)
   --insert-queue-size <n>   Bounded queue size between analyze and DB insert (default: 1024)
   --sqlite-fast-mode        SQLite mode only. Enable write-speed PRAGMA tuning (durability trade-off)
@@ -117,6 +139,7 @@ Optional:
 Examples:
   SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir /path/to/dir --db-file /path/to/file.db --mode peak-analysis --stems Piano,Drums --peak-file-threads 2 --peak-proc-threads 4 --insert-queue-size 2048 --show-progress
   SoundAnalyzer.Cli.exe --window-size 2048samples --hop 512samples --target-sampling 44100hz --input-dir /path/to/dir --mode stft-analysis --bin-count 12 --postgres --postgres-host localhost --postgres-port 5432 --postgres-db audio --postgres-user analyzer --postgres-password secret --stft-file-threads 2 --stft-proc-threads 6 --insert-queue-size 4096 --show-progress
+  SoundAnalyzer.Cli.exe --window-size 2048samples --hop 512samples --target-sampling 44100hz --input-dir /path/to/dir --mode mel-spectrogram-analysis --mel-bin-count 80 --mel-fmin-hz 20 --mel-fmax-hz 22050 --mel-scale slaney --mel-power 2 --mel-file-threads 2 --mel-proc-threads 6 --show-progress
 """;
 
     public const string MissingOptionPrefix = "Missing required option: ";
@@ -130,7 +153,14 @@ Examples:
     public const string InvalidTableNamePrefix = "Invalid table name: ";
     public const string InvalidStemsText = "--stems must contain at least one stem name when specified.";
     public const string UpsertSkipConflictText = "--upsert and --skip-duplicate cannot be specified together.";
-    public const string SampleUnitOnlyForStftText = "sample/sample(s) units are only supported with --mode stft-analysis.";
+    public const string SampleUnitOnlyForStftOrMelText =
+        "sample/sample(s) units are only supported with --mode stft-analysis or --mode mel-spectrogram-analysis.";
+    public const string SampleUnitOnlyForStftText = SampleUnitOnlyForStftOrMelText;
+    public const string InvalidMelFminHzPrefix = "Invalid mel-fmin-hz: ";
+    public const string InvalidMelFmaxHzPrefix = "Invalid mel-fmax-hz: ";
+    public const string InvalidMelScalePrefix = "Invalid mel-scale (expected slaney|htk): ";
+    public const string InvalidMelPowerPrefix = "Invalid mel-power (expected 1|2): ";
+    public const string InvalidMelFrequencyRangePrefix = "Invalid mel frequency range: ";
     public const string IncompatibleOptionIgnoredPrefix = "Option is ignored for current mode: ";
     public const string PostgresOptionRequiresPostgresModePrefix = "Option requires --postgres mode: ";
     public const string SqliteOptionNotAllowedWithPostgresPrefix = "SQLite option is not allowed with --postgres: ";
@@ -143,8 +173,11 @@ Examples:
     public const string FailedToCreateDbDirectoryPrefix = "Failed to create db directory: ";
     public const string DbFileRequiredPrefix = "SQLite mode requires --db-file: ";
     public const string DuplicateStftAnalysisNamePrefix = "Duplicate analysis name in input set (case-insensitive): ";
+    public const string DuplicateMelAnalysisNamePrefix = "Duplicate analysis name in input set (case-insensitive): ";
     public const string StftBinCountMismatchPrefix = "Existing STFT table bin-count mismatch: ";
     public const string StftSchemaMismatchPrefix = "Existing STFT table schema mismatch: ";
+    public const string MelBinCountMismatchPrefix = "Existing Mel table bin-count mismatch: ";
+    public const string MelSchemaMismatchPrefix = "Existing Mel table schema mismatch: ";
     public const string DatabaseOperationFailedPrefix = "Database operation failed: ";
     public const string PostgresOperationFailedPrefix = "PostgreSQL operation failed: ";
     public const string PostgresCredentialFileNotFoundPrefix = "PostgreSQL credential file was not found: ";
@@ -169,6 +202,17 @@ Examples:
     public const string StftInvalidBinCountPrefix = "Invalid bin-count: ";
     public const string StftInvalidMinLimitPrefix = "Invalid min-limit-db: ";
     public const string StftInvalidTargetSamplingPrefix = "Invalid target-sampling: ";
+
+    public const string MelInputFileNotFoundPrefix = "Input file does not exist: ";
+    public const string MelInvalidWindowPrefix = "Invalid window-size: ";
+    public const string MelInvalidHopPrefix = "Invalid hop: ";
+    public const string MelInvalidBinCountPrefix = "Invalid mel-bin-count: ";
+    public const string MelInvalidFrequenciesPrefix = "Invalid mel frequencies: ";
+    public const string MelInvalidScalePrefix = "Invalid mel-scale: ";
+    public const string MelInvalidPowerPrefix = "Invalid mel-power: ";
+    public const string MelInvalidMinLimitPrefix = "Invalid min-limit-db: ";
+    public const string MelInvalidTargetSamplingPrefix = "Invalid target-sampling: ";
+    public const string MelFmaxClampedWarningPrefix = "mel-fmax-hz was clamped to Nyquist: ";
 
     public static string WithValue(string prefix, string value)
     {

@@ -58,6 +58,38 @@ internal sealed class AnalysisStoreFactory : IAnalysisStoreFactory
         };
     }
 
+    public IMelSpectrogramAnalysisStore CreateMelSpectrogramStore(
+        CommandLineArguments arguments,
+        string anchorColumnName,
+        int melBinCount,
+        SqliteConflictMode conflictMode)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentException.ThrowIfNullOrWhiteSpace(anchorColumnName);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(melBinCount);
+
+        return arguments.StorageBackend switch
+        {
+            StorageBackend.Postgres => new PostgresMelSpectrogramAnalysisStore(
+                BuildPostgresConnectionOptions(arguments),
+                BuildPostgresSshOptions(arguments),
+                arguments.TableName,
+                anchorColumnName,
+                conflictMode,
+                melBinCount,
+                arguments.DeleteCurrent,
+                arguments.PostgresBatchRowCount),
+            _ => new SqliteMelSpectrogramAnalysisStore(
+                arguments.DbFilePath ?? throw new CliException(CliErrorCode.DbFileRequired, "SQLite mode requires db file path."),
+                arguments.TableName,
+                anchorColumnName,
+                conflictMode,
+                melBinCount,
+                arguments.DeleteCurrent,
+                new SqliteWriteOptions(arguments.SqliteFastMode, arguments.SqliteBatchRowCount)),
+        };
+    }
+
     private static PostgresConnectionOptions BuildPostgresConnectionOptions(CommandLineArguments arguments)
     {
         ArgumentNullException.ThrowIfNull(arguments);

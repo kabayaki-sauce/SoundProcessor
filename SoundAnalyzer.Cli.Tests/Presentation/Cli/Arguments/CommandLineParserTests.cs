@@ -38,6 +38,15 @@ public sealed class CommandLineParserTests
         "--postgres-user", "analyzer",
     ];
 
+    private static readonly string[] BaseMelArgs =
+    [
+        "--window-size", "50ms",
+        "--hop", "10ms",
+        "--input-dir", "C:/input",
+        "--db-file", "C:/tmp/analysis.db",
+        "--mode", "mel-spectrogram-analysis",
+    ];
+
     [Fact]
     public void Parse_ShouldFail_WhenUpsertAndSkipDuplicateAreSpecifiedTogether()
     {
@@ -147,6 +156,79 @@ public sealed class CommandLineParserTests
     }
 
     [Fact]
+    public void Parse_ShouldWarnAndIgnoreMelOptions_WhenModeIsStft()
+    {
+        string[] args =
+        [
+            .. BaseStftArgs,
+            "--mel-bin-count", "80",
+            "--mel-fmin-hz", "20",
+            "--mel-fmax-hz", "22050",
+            "--mel-scale", "slaney",
+            "--mel-power", "2",
+            "--mel-proc-threads", "4",
+            "--mel-file-threads", "2",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(result.Warnings, warning => warning.Contains(ConsoleTexts.MelBinCountOption, StringComparison.Ordinal));
+        Assert.Contains(result.Warnings, warning => warning.Contains(ConsoleTexts.MelFminHzOption, StringComparison.Ordinal));
+        Assert.Contains(result.Warnings, warning => warning.Contains(ConsoleTexts.MelFmaxHzOption, StringComparison.Ordinal));
+        Assert.Contains(result.Warnings, warning => warning.Contains(ConsoleTexts.MelScaleOption, StringComparison.Ordinal));
+        Assert.Contains(result.Warnings, warning => warning.Contains(ConsoleTexts.MelPowerOption, StringComparison.Ordinal));
+        Assert.Contains(result.Warnings, warning => warning.Contains(ConsoleTexts.MelProcThreadsOption, StringComparison.Ordinal));
+        Assert.Contains(result.Warnings, warning => warning.Contains(ConsoleTexts.MelFileThreadsOption, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Parse_ShouldParseMelModeWithDefaults()
+    {
+        CommandLineParseResult result = CommandLineParser.Parse(BaseMelArgs);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Arguments);
+        Assert.Equal(ConsoleTexts.MelSpectrogramAnalysisMode, result.Arguments.Mode);
+        Assert.Equal(ConsoleTexts.DefaultMelTableName, result.Arguments.TableName);
+        Assert.Equal(ConsoleTexts.DefaultMelBinCount, result.Arguments.MelBinCount);
+        Assert.Equal(ConsoleTexts.DefaultMelFminHz, result.Arguments.MelFminHz, precision: 6);
+        Assert.Equal(ConsoleTexts.DefaultMelFmaxHz, result.Arguments.MelFmaxHz, precision: 6);
+        Assert.Equal(MelScaleOption.Slaney, result.Arguments.MelScale);
+        Assert.Equal(ConsoleTexts.DefaultMelPower, result.Arguments.MelPower);
+        Assert.Equal(1, result.Arguments.MelProcThreads);
+        Assert.Equal(1, result.Arguments.MelFileThreads);
+    }
+
+    [Fact]
+    public void Parse_ShouldParseMelOptions()
+    {
+        string[] args =
+        [
+            .. BaseMelArgs,
+            "--mel-bin-count", "128",
+            "--mel-fmin-hz", "30.5",
+            "--mel-fmax-hz", "18000",
+            "--mel-scale", "htk",
+            "--mel-power", "1",
+            "--mel-proc-threads", "6",
+            "--mel-file-threads", "3",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Arguments);
+        Assert.Equal(128, result.Arguments.MelBinCount);
+        Assert.Equal(30.5, result.Arguments.MelFminHz, precision: 6);
+        Assert.Equal(18000, result.Arguments.MelFmaxHz, precision: 6);
+        Assert.Equal(MelScaleOption.Htk, result.Arguments.MelScale);
+        Assert.Equal(1, result.Arguments.MelPower);
+        Assert.Equal(6, result.Arguments.MelProcThreads);
+        Assert.Equal(3, result.Arguments.MelFileThreads);
+    }
+
+    [Fact]
     public void Parse_ShouldWarnAndIgnoreBinCount_WhenModeIsPeak()
     {
         string[] args =
@@ -230,6 +312,27 @@ public sealed class CommandLineParserTests
     }
 
     [Fact]
+    public void Parse_ShouldRequireTargetSampling_WhenSampleUnitIsUsedInMel()
+    {
+        string[] args =
+        [
+            "--window-size", "2048samples",
+            "--hop", "512samples",
+            "--input-dir", "C:/input",
+            "--db-file", "C:/tmp/analysis.db",
+            "--mode", "mel-spectrogram-analysis",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(
+            ConsoleTexts.WithValue(ConsoleTexts.MissingOptionPrefix, ConsoleTexts.TargetSamplingOption),
+            result.Errors,
+            StringComparer.Ordinal);
+    }
+
+    [Fact]
     public void Parse_ShouldAcceptSampleUnitsWithTargetSampling_WhenModeIsStft()
     {
         string[] args =
@@ -275,6 +378,77 @@ public sealed class CommandLineParserTests
         Assert.Contains(
             result.Warnings,
             warning => warning.Contains(ConsoleTexts.TargetSamplingOption, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Parse_ShouldWarnAndIgnoreBinCount_WhenModeIsMel()
+    {
+        string[] args =
+        [
+            .. BaseMelArgs,
+            "--bin-count", "12",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Arguments);
+        Assert.Null(result.Arguments.BinCount);
+        Assert.Contains(
+            result.Warnings,
+            warning => warning.Contains(ConsoleTexts.BinCountOption, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Parse_ShouldFail_WhenMelFrequencyRangeIsInvalid()
+    {
+        string[] args =
+        [
+            .. BaseMelArgs,
+            "--mel-fmin-hz", "1000",
+            "--mel-fmax-hz", "500",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(
+            result.Errors,
+            error => error.Contains(ConsoleTexts.InvalidMelFrequencyRangePrefix, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Parse_ShouldFail_WhenMelScaleIsInvalid()
+    {
+        string[] args =
+        [
+            .. BaseMelArgs,
+            "--mel-scale", "badscale",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(
+            result.Errors,
+            error => error.Contains(ConsoleTexts.InvalidMelScalePrefix, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Parse_ShouldFail_WhenMelPowerIsInvalid()
+    {
+        string[] args =
+        [
+            .. BaseMelArgs,
+            "--mel-power", "3",
+        ];
+
+        CommandLineParseResult result = CommandLineParser.Parse(args);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(
+            result.Errors,
+            error => error.Contains(ConsoleTexts.InvalidMelPowerPrefix, StringComparison.Ordinal));
     }
 
     [Fact]

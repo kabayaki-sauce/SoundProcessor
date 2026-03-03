@@ -2,7 +2,7 @@
 
 ## 役割
 `SoundAnalyzer.Cli` はディレクトリ配下の音声ファイルを一括解析し、結果を SQLite / PostgreSQL へ保存する CLI です。  
-`peak-analysis` は `PeakAnalyzer.Core`、`stft-analysis` は `STFTAnalyzer.Core` を利用します。
+`peak-analysis` は `PeakAnalyzer.Core`、`stft-analysis` は `STFTAnalyzer.Core`、`mel-spectrogram-analysis` は `MelSpectrogramAnalyzer.Core` を利用します。
 
 Windows / Linux は必須サポート対象です（SQLite モード・Postgres モードの双方で同一方針を適用します）。
 macOS は任意検証対象です。
@@ -10,11 +10,11 @@ macOS は任意検証対象です。
 ## 実行形式
 
 ```powershell
-SoundAnalyzer.Cli.exe --window-size <len> --hop <len> --input-dir <path> --mode <peak-analysis|stft-analysis> [--db-file <path> | --postgres ...] [options]
+SoundAnalyzer.Cli.exe --window-size <len> --hop <len> --input-dir <path> --mode <peak-analysis|stft-analysis|mel-spectrogram-analysis> [--db-file <path> | --postgres ...] [options]
 ```
 
 ```bash
-dotnet SoundAnalyzer.Cli.dll --window-size <len> --hop <len> --input-dir <path> --mode <peak-analysis|stft-analysis> [--db-file <path> | --postgres ...] [options]
+dotnet SoundAnalyzer.Cli.dll --window-size <len> --hop <len> --input-dir <path> --mode <peak-analysis|stft-analysis|mel-spectrogram-analysis> [--db-file <path> | --postgres ...] [options]
 ```
 
 ## クロスプラットフォーム方針
@@ -46,18 +46,25 @@ dotnet SoundAnalyzer.Cli.dll --window-size <len> --hop <len> --input-dir <path> 
 | `--postgres-ssh-private-key-path <path>` | 条件付き必須 | `--postgres-ssh-host` 指定時に必須 |
 | `--postgres-ssh-known-hosts-path <path>` | 条件付き必須 | `--postgres-ssh-host` 指定時に必須 |
 | `--postgres-batch-row-count <n>` | 任意 | PostgreSQL モード専用。複数行 INSERT バッチ行数（既定 `1`、PostgreSQLパラメータ上限で自動クランプ） |
-| `--mode <value>` | 必須 | `peak-analysis` または `stft-analysis` |
-| `--target-sampling <n>hz` | 条件付き必須 | `stft-analysis` かつ `window/hop` のどちらかが `sample(s)` 指定の場合に必須 |
+| `--mode <value>` | 必須 | `peak-analysis` / `stft-analysis` / `mel-spectrogram-analysis` |
+| `--target-sampling <n>hz` | 条件付き必須 | `stft-analysis` または `mel-spectrogram-analysis` で `window/hop` のどちらかが `sample(s)` 指定の場合に必須 |
 | `--table-name-override <name>` | 任意 | テーブル名上書き |
 | `--upsert` | 任意 | 競合時更新 |
 | `--skip-duplicate` | 任意 | 競合時スキップ |
 | `--min-limit-db <dB>` | 任意 | 下限クランプ（既定 `-120.0`） |
 | `--bin-count <n>` | 条件付き必須 | `stft-analysis` のみ必須（`n >= 1`） |
-| `--delete-current` | 任意 | `stft-analysis` のみ。既存テーブルを削除して再作成 |
-| `--recursive` | 任意 | `stft-analysis` のみ。`input-dir` 配下を再帰走査 |
+| `--mel-bin-count <n>` | 任意 | `mel-spectrogram-analysis` のみ。Mel bin 数（既定 `80`） |
+| `--mel-fmin-hz <n>` | 任意 | `mel-spectrogram-analysis` のみ。Mel 最小周波数（既定 `20`） |
+| `--mel-fmax-hz <n>` | 任意 | `mel-spectrogram-analysis` のみ。Mel 最大周波数（既定 `22050`） |
+| `--mel-scale <slaney\|htk>` | 任意 | `mel-spectrogram-analysis` のみ。Mel 変換方式（既定 `slaney`） |
+| `--mel-power <1\|2>` | 任意 | `mel-spectrogram-analysis` のみ。`1=magnitude`, `2=power`（既定 `2`） |
+| `--delete-current` | 任意 | `stft-analysis` / `mel-spectrogram-analysis` のみ。既存テーブルを削除して再作成 |
+| `--recursive` | 任意 | `stft-analysis` / `mel-spectrogram-analysis` のみ。`input-dir` 配下を再帰走査 |
 | `--stft-proc-threads <n>` | 任意 | `stft-analysis` のみ。1ファイル内の解析処理スレッド数（既定 `1`） |
+| `--mel-proc-threads <n>` | 任意 | `mel-spectrogram-analysis` のみ。1ファイル内の解析処理スレッド数（既定 `1`） |
 | `--peak-proc-threads <n>` | 任意 | `peak-analysis` のみ。1 Song 内の解析処理スレッド数（既定 `1`） |
 | `--stft-file-threads <n>` | 任意 | `stft-analysis` のみ。同時解析ファイル数（既定 `1`） |
+| `--mel-file-threads <n>` | 任意 | `mel-spectrogram-analysis` のみ。同時解析ファイル数（既定 `1`） |
 | `--peak-file-threads <n>` | 任意 | `peak-analysis` のみ。同時解析 Song 数（既定 `1`） |
 | `--insert-queue-size <n>` | 任意 | 解析と DB Insert の間に置く bounded queue の容量（既定 `1024`） |
 | `--sqlite-batch-row-count <n>` | 任意 | SQLite モード専用。複数行 INSERT バッチ行数（既定 `512`、SQLite変数上限で自動クランプ） |
@@ -69,7 +76,7 @@ dotnet SoundAnalyzer.Cli.dll --window-size <len> --hop <len> --input-dir <path> 
 
 ### 単位/サンプリング規則
 
-- `sample` / `samples` は `stft-analysis` 専用です。`peak-analysis` ではエラーになります。
+- `sample` / `samples` は `stft-analysis` / `mel-spectrogram-analysis` 専用です。`peak-analysis` ではエラーになります。
 - `window` と `hop` の単位混在は許可します（例: `window=50ms`, `hop=512samples`）。
 - `sample(s)` を1つでも使う場合は `--target-sampling <n>hz` が必須です（例: `44100hz`）。
 - モード不一致オプションはエラーではなく warning として無視されます（`stderr` に JSON の `warnings` を出力）。
@@ -109,6 +116,19 @@ dotnet SoundAnalyzer.Cli.dll --window-size <len> --hop <len> --input-dir <path> 
 既定テーブル名: `t_stft`  
 既定モード文字列: `stft-analysis`
 
+### `mel-spectrogram-analysis` の追加制約
+
+- `--mel-bin-count >= 1`
+- `--mel-fmin-hz >= 0`
+- `--mel-fmax-hz > --mel-fmin-hz`
+- `--mel-scale` は `slaney` または `htk`
+- `--mel-power` は `1` または `2`
+- `--mel-fmax-hz` が Nyquist を超える場合は実行時に Nyquist へ自動クランプし、`stderr` warnings JSON に集約出力します。
+- `--delete-current` / `--recursive` / `--target-sampling` の扱いは `stft-analysis` と同一です。
+
+既定テーブル名: `t_mel_spectrogram`  
+既定モード文字列: `mel-spectrogram-analysis`
+
 ## 解析対象ファイルの解決
 
 ### `peak-analysis`
@@ -119,6 +139,15 @@ dotnet SoundAnalyzer.Cli.dll --window-size <len> --hop <len> --input-dir <path> 
 
 ### `stft-analysis`
 
+- `--recursive` 未指定: `input-dir` 直下ファイルのみ
+- `--recursive` 指定: `input-dir` 配下を再帰走査
+- 対象拡張子は `wav/flac/m4a/caf`
+- 同一ディレクトリで同名別拡張子がある場合は `wav -> flac -> m4a/caf -> others` 優先で1件採用
+- 解析対象集合で `name`（拡張子なし）が大小無視で重複する場合は実行前エラー
+
+### `mel-spectrogram-analysis`
+
+- `stft-analysis` と同じファイル解決ルールを適用します。
 - `--recursive` 未指定: `input-dir` 直下ファイルのみ
 - `--recursive` 指定: `input-dir` 配下を再帰走査
 - 対象拡張子は `wav/flac/m4a/caf`
@@ -158,12 +187,29 @@ dotnet SoundAnalyzer.Cli.dll --window-size <len> --hop <len> --input-dir <path> 
 旧 wide 形式（`bin001..binNNN` 列）の STFT テーブルを検知した場合は互換実行せず失敗します。  
 その場合は `--delete-current` で再作成するか、`--table-name-override` で新規テーブルを指定してください。
 
+### `mel-spectrogram-analysis`
+
+既定テーブル: `t_mel_spectrogram`
+
+- Mel bin は縦持ちで保存されます（1行 = 1bin）
+- `window_size` 列には入力指定値を保存します
+- hop が `ms/s/m` 指定のとき:
+  - 列: `idx`, `audio_name`, `ch`, `window_size`, `ms`, `bin_no`, `db`, `create_at`, `modified_at`
+  - 一意制約: `(audio_name, ch, window_size, ms, bin_no)`
+  - インデックス: `(audio_name)`, `(audio_name, ch)`, `(audio_name, ms)`, `(audio_name, ch, ms)`, `(audio_name, ch, window_size, ms)`
+- hop が `sample/samples` 指定のとき:
+  - 列: `idx`, `audio_name`, `ch`, `window_size`, `sample`, `bin_no`, `db`, `create_at`, `modified_at`
+  - 一意制約: `(audio_name, ch, window_size, sample, bin_no)`
+  - インデックス: `(audio_name)`, `(audio_name, ch)`, `(audio_name, sample)`, `(audio_name, ch, sample)`, `(audio_name, ch, window_size, sample)`
+
+`--delete-current` 未指定時は既存テーブルのアンカー列整合・`bin_no` 分布整合・legacy wide 形式を検証し、不一致時は失敗します。
+
 ## PostgreSQL スキーマ
 
-- SQLite と同じ論理列を維持します（Peak: `idx,audio_name,stem,window_size,ms,db,create_at,modified_at` / STFT: `idx,audio_name,ch,window_size,ms|sample,bin_no,db,create_at,modified_at`）。
+- SQLite と同じ論理列を維持します（Peak: `idx,audio_name,stem,window_size,ms,db,create_at,modified_at` / STFT/Mel: `idx,audio_name,ch,window_size,ms|sample,bin_no,db,create_at,modified_at`）。
 - 競合モードは SQLite と同等です（Error / Upsert / SkipDuplicate）。
-- 既存テーブル時の STFT スキーマ検証 / bin-count 検証 / `--delete-current` 挙動は SQLite と同等です。
-- インデックスは SQLite 相当を基本とし、STFT では PostgreSQL 向けに `(audio_name, ch, window_size, anchor)` 補助インデックスを明示作成します。
+- 既存テーブル時の STFT/Mel スキーマ検証 / bin-count 検証 / `--delete-current` 挙動は SQLite と同等です。
+- インデックスは SQLite 相当を基本とし、STFT/Mel では PostgreSQL 向けに `(audio_name, ch, window_size, anchor)` 補助インデックスを明示作成します。
 - PostgreSQL 側も複数行 `INSERT ... VALUES` バッチで挿入します（`--postgres-batch-row-count` 既定 `1`）。
   - PostgreSQL のパラメータ上限（`65535`）を超えないように自動クランプされます。
 
@@ -209,6 +255,12 @@ SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir /path/to/dir --d
 
 ```powershell
 SoundAnalyzer.Cli.exe --window-size 2048samples --hop 512samples --target-sampling 44100hz --input-dir /path/to/dir --db-file /path/to/file.db --mode stft-analysis --bin-count 24 --upsert
+```
+
+### mel-spectrogram-analysis
+
+```powershell
+SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --target-sampling 16000hz --input-dir /path/to/dir --db-file /path/to/file.db --mode mel-spectrogram-analysis --mel-bin-count 80 --mel-fmin-hz 20 --mel-fmax-hz 22050 --mel-scale slaney --mel-power 2 --mel-file-threads 2 --mel-proc-threads 6 --recursive --delete-current --show-progress
 ```
 
 ### Linux 実行例（stft-analysis）

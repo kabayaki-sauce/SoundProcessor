@@ -2,6 +2,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using AudioProcessor.Application.Errors;
 using Cli.Shared.Extensions;
+using MelSpectrogramAnalyzer.Core.Application.Errors;
+using MelSpectrogramAnalyzer.Core.Extensions;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -57,9 +59,14 @@ internal static class Entry
         try
         {
             CommandLineArguments arguments = parseResult.Arguments;
-            object summary = Execute(arguments, host.Services, cancellationTokenSource.Token);
+            ExecutionOutcome outcome = Execute(arguments, host.Services, cancellationTokenSource.Token);
 
-            string serialized = JsonSerializer.Serialize(summary);
+            if (outcome.Warnings.Count > 0)
+            {
+                WriteWarnings(outcome.Warnings);
+            }
+
+            string serialized = JsonSerializer.Serialize(outcome.Summary);
             System.Console.Out.WriteLine(serialized);
             return 0;
         }
@@ -79,6 +86,11 @@ internal static class Entry
             return 1;
         }
         catch (StftAnalysisException exception)
+        {
+            WriteErrors(new[] { CliErrorMapper.ToMessage(exception) });
+            return 1;
+        }
+        catch (MelSpectrogramAnalysisException exception)
         {
             WriteErrors(new[] { CliErrorMapper.ToMessage(exception) });
             return 1;
@@ -109,7 +121,7 @@ internal static class Entry
         }
     }
 
-    private static object Execute(
+    private static ExecutionOutcome Execute(
         CommandLineArguments arguments,
         IServiceProvider services,
         CancellationToken cancellationToken)
@@ -119,16 +131,36 @@ internal static class Entry
 
         return arguments.Mode switch
         {
-            ConsoleTexts.PeakAnalysisMode => services.GetRequiredService<PeakAnalysisBatchExecutor>()
-                .ExecuteAsync(arguments, cancellationToken)
-                .GetAwaiter()
-                .GetResult(),
-            ConsoleTexts.StftAnalysisMode => services.GetRequiredService<StftAnalysisBatchExecutor>()
-                .ExecuteAsync(arguments, cancellationToken)
-                .GetAwaiter()
-                .GetResult(),
+            ConsoleTexts.PeakAnalysisMode => new ExecutionOutcome(
+                services.GetRequiredService<PeakAnalysisBatchExecutor>()
+                    .ExecuteAsync(arguments, cancellationToken)
+                    .GetAwaiter()
+                    .GetResult(),
+                Array.Empty<string>()),
+            ConsoleTexts.StftAnalysisMode => new ExecutionOutcome(
+                services.GetRequiredService<StftAnalysisBatchExecutor>()
+                    .ExecuteAsync(arguments, cancellationToken)
+                    .GetAwaiter()
+                    .GetResult(),
+                Array.Empty<string>()),
+            ConsoleTexts.MelSpectrogramAnalysisMode => BuildMelOutcome(services, arguments, cancellationToken),
             _ => throw new CliException(CliErrorCode.UnsupportedMode, arguments.Mode),
         };
+    }
+
+    private static ExecutionOutcome BuildMelOutcome(
+        IServiceProvider services,
+        CommandLineArguments arguments,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(arguments);
+
+        MelSpectrogramAnalysisExecutionResult result = services.GetRequiredService<MelSpectrogramAnalysisBatchExecutor>()
+            .ExecuteAsync(arguments, cancellationToken)
+            .GetAwaiter()
+            .GetResult();
+        return new ExecutionOutcome(result.Summary, result.Warnings);
     }
 
     private static IHost BuildHost()
@@ -138,9 +170,11 @@ internal static class Entry
         builder.Services.AddCliShared();
         builder.Services.AddPeakAnalyzerCore();
         builder.Services.AddStftAnalyzerCore();
+        builder.Services.AddMelSpectrogramAnalyzerCore();
         builder.Services.AddSingleton<IAnalysisStoreFactory, AnalysisStoreFactory>();
         builder.Services.AddSingleton<PeakAnalysisBatchExecutor>();
         builder.Services.AddSingleton<StftAnalysisBatchExecutor>();
+        builder.Services.AddSingleton<MelSpectrogramAnalysisBatchExecutor>();
 
         return builder.Build();
     }
@@ -180,6 +214,19 @@ internal static class Entry
         }
 
         [JsonPropertyName("warnings")]
+        public IReadOnlyList<string> Warnings { get; }
+    }
+
+    private sealed class ExecutionOutcome
+    {
+        public ExecutionOutcome(object summary, IReadOnlyList<string> warnings)
+        {
+            Summary = summary ?? throw new ArgumentNullException(nameof(summary));
+            Warnings = warnings ?? throw new ArgumentNullException(nameof(warnings));
+        }
+
+        public object Summary { get; }
+
         public IReadOnlyList<string> Warnings { get; }
     }
 }

@@ -14,6 +14,11 @@ AudioProcessor は、オーディオ解析・変換ツール群を提供する .
   - 大量投入向けに `--sqlite-batch-row-count`（既定 `512`）で複数行 INSERT バッチサイズを調整可能
   - PostgreSQLモードでは `--postgres-batch-row-count`（既定 `1`）で複数行 INSERT バッチサイズを調整可能（上限は自動クランプ）
   - `--sqlite-fast-mode` 指定時のみ SQLite 書込PRAGMAを速度優先へ切替（耐障害性トレードオフあり）
+- Mel Spectrogram解析（チャネル別mel bin dB）+ SQLite/PostgreSQL 保存: `SoundAnalyzer.Cli --mode mel-spectrogram-analysis`
+  - Mel既定値は `--mel-bin-count 80`, `--mel-fmin-hz 20`, `--mel-fmax-hz 22050`
+  - `--mel-scale slaney|htk`, `--mel-power 1|2` を切替可能
+  - `--mel-fmax-hz` が Nyquist を超える場合は自動クランプし、`stderr` の warnings JSON へ集約出力
+  - `--mel-proc-threads` / `--mel-file-threads` / `--insert-queue-size` で並列・キュー制御
 - `--show-progress` は interactive な `pwsh/cmd` で、Songs/Threads/Queue の詳細進捗を `stderr` に表示（Thread行は単一ゲージで Insert=緑 / Analyze=白 / 未処理=斑点）
 
 ## プロジェクト構成
@@ -33,6 +38,8 @@ AudioProcessor は、オーディオ解析・変換ツール群を提供する .
 | `AudioSplitter.Cli.Tests` | Test | `AudioSplitter.Cli` の単体テスト |
 | `PeakAnalyzer.Core.Tests` | Test | `PeakAnalyzer.Core` の単体テスト |
 | `STFTAnalyzer.Core.Tests` | Test | `STFTAnalyzer.Core` の単体テスト |
+| `MelSpectrogramAnalyzer.Core` | Library | hop/window ベースの Mel Spectrogram 解析コア |
+| `MelSpectrogramAnalyzer.Core.Tests` | Test | `MelSpectrogramAnalyzer.Core` の単体テスト |
 | `SoundAnalyzer.Cli.Tests` | Test | `SoundAnalyzer.Cli` の単体テスト |
 
 ## 依存方向
@@ -40,6 +47,7 @@ AudioProcessor は、オーディオ解析・変換ツール群を提供する .
 - `AudioSplitter.Cli -> AudioSplitter.Core -> AudioProcessor`
 - `SoundAnalyzer.Cli -> PeakAnalyzer.Core -> AudioProcessor`
 - `SoundAnalyzer.Cli -> STFTAnalyzer.Core -> AudioProcessor`
+- `SoundAnalyzer.Cli -> MelSpectrogramAnalyzer.Core -> AudioProcessor`
 
 `SoundAnalyzer.Cli` の SQLite 保存は、初期化時に `journal_mode=WAL` を試行します。  
 WAL 非対応環境では既存ジャーナルモードへ自動フォールバックします。
@@ -120,6 +128,24 @@ dotnet run --project SoundAnalyzer.Cli -- \
   --upsert
 ```
 
+### SoundAnalyzer.Cli (mel-spectrogram-analysis)
+
+```powershell
+dotnet run --project SoundAnalyzer.Cli -- \
+  --window-size 50ms \
+  --hop 10ms \
+  --target-sampling 16000hz \
+  --input-dir /path/to/dir \
+  --db-file /path/to/file.db \
+  --mode mel-spectrogram-analysis \
+  --mel-bin-count 80 \
+  --mel-fmin-hz 20 \
+  --mel-fmax-hz 22050 \
+  --mel-scale slaney \
+  --mel-power 2 \
+  --upsert
+```
+
 ### SoundAnalyzer.Cli (Windows 実行例)
 
 ```powershell
@@ -170,4 +196,5 @@ SoundAnalyzer.Cli.exe --window-size 50ms --hop 10ms --input-dir C:\audio\split -
 - [`AudioSplitter.Cli/README.md`](AudioSplitter.Cli/README.md)
 - [`PeakAnalyzer.Core/README.md`](PeakAnalyzer.Core/README.md)
 - [`STFTAnalyzer.Core/README.md`](STFTAnalyzer.Core/README.md)
+- [`MelSpectrogramAnalyzer.Core/README.md`](MelSpectrogramAnalyzer.Core/README.md)
 - [`SoundAnalyzer.Cli/README.md`](SoundAnalyzer.Cli/README.md)

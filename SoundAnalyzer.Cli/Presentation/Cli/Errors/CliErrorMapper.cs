@@ -1,4 +1,5 @@
 using AudioProcessor.Application.Errors;
+using MelSpectrogramAnalyzer.Core.Application.Errors;
 using Microsoft.Data.Sqlite;
 using Npgsql;
 using PeakAnalyzer.Core.Application.Errors;
@@ -21,8 +22,11 @@ internal static class CliErrorMapper
             CliErrorCode.DbDirectoryCreationFailed => ConsoleTexts.WithValue(ConsoleTexts.FailedToCreateDbDirectoryPrefix, exception.Detail),
             CliErrorCode.DbFileRequired => ConsoleTexts.WithValue(ConsoleTexts.DbFileRequiredPrefix, exception.Detail),
             CliErrorCode.DuplicateStftAnalysisName => ConsoleTexts.WithValue(ConsoleTexts.DuplicateStftAnalysisNamePrefix, exception.Detail),
+            CliErrorCode.DuplicateMelAnalysisName => ConsoleTexts.WithValue(ConsoleTexts.DuplicateMelAnalysisNamePrefix, exception.Detail),
             CliErrorCode.StftTableBinCountMismatch => ConsoleTexts.WithValue(ConsoleTexts.StftBinCountMismatchPrefix, exception.Detail),
             CliErrorCode.StftTableSchemaMismatch => ConsoleTexts.WithValue(ConsoleTexts.StftSchemaMismatchPrefix, exception.Detail),
+            CliErrorCode.MelTableBinCountMismatch => ConsoleTexts.WithValue(ConsoleTexts.MelBinCountMismatchPrefix, exception.Detail),
+            CliErrorCode.MelTableSchemaMismatch => ConsoleTexts.WithValue(ConsoleTexts.MelSchemaMismatchPrefix, exception.Detail),
             CliErrorCode.PostgresConfigurationInvalid => ConsoleTexts.WithValue(ConsoleTexts.PostgresConfigurationInvalidPrefix, exception.Detail),
             CliErrorCode.PostgresCredentialFileNotFound => ConsoleTexts.WithValue(ConsoleTexts.PostgresCredentialFileNotFoundPrefix, exception.Detail),
             CliErrorCode.PostgresSshTunnelFailed => ConsoleTexts.WithValue(ConsoleTexts.PostgresSshTunnelFailedPrefix, exception.Detail),
@@ -57,6 +61,25 @@ internal static class CliErrorMapper
             StftAnalysisErrorCode.InvalidBinCount => ConsoleTexts.WithValue(ConsoleTexts.StftInvalidBinCountPrefix, exception.Detail),
             StftAnalysisErrorCode.InvalidMinLimitDb => ConsoleTexts.WithValue(ConsoleTexts.StftInvalidMinLimitPrefix, exception.Detail),
             StftAnalysisErrorCode.InvalidTargetSampling => ConsoleTexts.WithValue(ConsoleTexts.StftInvalidTargetSamplingPrefix, exception.Detail),
+            _ => exception.Detail,
+        };
+    }
+
+    public static string ToMessage(MelSpectrogramAnalysisException exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        return exception.ErrorCode switch
+        {
+            MelSpectrogramAnalysisErrorCode.InputFileNotFound => ConsoleTexts.WithValue(ConsoleTexts.MelInputFileNotFoundPrefix, exception.Detail),
+            MelSpectrogramAnalysisErrorCode.InvalidWindowSize => ConsoleTexts.WithValue(ConsoleTexts.MelInvalidWindowPrefix, exception.Detail),
+            MelSpectrogramAnalysisErrorCode.InvalidHop => ConsoleTexts.WithValue(ConsoleTexts.MelInvalidHopPrefix, exception.Detail),
+            MelSpectrogramAnalysisErrorCode.InvalidMelBinCount => ConsoleTexts.WithValue(ConsoleTexts.MelInvalidBinCountPrefix, exception.Detail),
+            MelSpectrogramAnalysisErrorCode.InvalidMelFrequencies => ConsoleTexts.WithValue(ConsoleTexts.MelInvalidFrequenciesPrefix, exception.Detail),
+            MelSpectrogramAnalysisErrorCode.InvalidMelScale => ConsoleTexts.WithValue(ConsoleTexts.MelInvalidScalePrefix, exception.Detail),
+            MelSpectrogramAnalysisErrorCode.InvalidMelPower => ConsoleTexts.WithValue(ConsoleTexts.MelInvalidPowerPrefix, exception.Detail),
+            MelSpectrogramAnalysisErrorCode.InvalidMinLimitDb => ConsoleTexts.WithValue(ConsoleTexts.MelInvalidMinLimitPrefix, exception.Detail),
+            MelSpectrogramAnalysisErrorCode.InvalidTargetSampling => ConsoleTexts.WithValue(ConsoleTexts.MelInvalidTargetSamplingPrefix, exception.Detail),
             _ => exception.Detail,
         };
     }

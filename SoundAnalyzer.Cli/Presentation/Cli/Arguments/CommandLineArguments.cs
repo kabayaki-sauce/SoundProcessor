@@ -18,12 +18,19 @@ internal sealed class CommandLineArguments
         bool skipDuplicate,
         double minLimitDb,
         int? binCount,
+        int? melBinCount,
+        double melFminHz,
+        double melFmaxHz,
+        MelScaleOption melScale,
+        int melPower,
         bool deleteCurrent,
         bool recursive,
         string? ffmpegPath,
         int stftProcThreads,
+        int melProcThreads,
         int peakProcThreads,
         int stftFileThreads,
+        int melFileThreads,
         int peakFileThreads,
         int insertQueueSize,
         bool sqliteFastMode,
@@ -50,8 +57,10 @@ internal sealed class CommandLineArguments
         ArgumentException.ThrowIfNullOrWhiteSpace(mode);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(stftProcThreads);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(melProcThreads);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(peakProcThreads);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(stftFileThreads);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(melFileThreads);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(peakFileThreads);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(insertQueueSize);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sqliteBatchRowCount);
@@ -88,6 +97,28 @@ internal sealed class CommandLineArguments
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(binCount.Value);
         }
 
+        if (melBinCount.HasValue)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(melBinCount.Value);
+        }
+
+        if (double.IsNaN(melFminHz) || double.IsInfinity(melFminHz) || melFminHz < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(melFminHz));
+        }
+
+        if (double.IsNaN(melFmaxHz) || double.IsInfinity(melFmaxHz) || melFmaxHz <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(melFmaxHz));
+        }
+
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(melFmaxHz, melFminHz);
+
+        if (melPower is not 1 and not 2)
+        {
+            throw new ArgumentOutOfRangeException(nameof(melPower));
+        }
+
         WindowValue = windowValue;
         WindowUnit = windowUnit;
         HopValue = hopValue;
@@ -103,12 +134,19 @@ internal sealed class CommandLineArguments
         SkipDuplicate = skipDuplicate;
         MinLimitDb = minLimitDb;
         BinCount = binCount;
+        MelBinCount = melBinCount;
+        MelFminHz = melFminHz;
+        MelFmaxHz = melFmaxHz;
+        MelScale = melScale;
+        MelPower = melPower;
         DeleteCurrent = deleteCurrent;
         Recursive = recursive;
         FfmpegPath = ffmpegPath;
         StftProcThreads = stftProcThreads;
+        MelProcThreads = melProcThreads;
         PeakProcThreads = peakProcThreads;
         StftFileThreads = stftFileThreads;
+        MelFileThreads = melFileThreads;
         PeakFileThreads = peakFileThreads;
         InsertQueueSize = insertQueueSize;
         SqliteFastMode = sqliteFastMode;
@@ -160,6 +198,16 @@ internal sealed class CommandLineArguments
 
     public int? BinCount { get; }
 
+    public int? MelBinCount { get; }
+
+    public double MelFminHz { get; }
+
+    public double MelFmaxHz { get; }
+
+    public MelScaleOption MelScale { get; }
+
+    public int MelPower { get; }
+
     public bool DeleteCurrent { get; }
 
     public bool Recursive { get; }
@@ -168,9 +216,13 @@ internal sealed class CommandLineArguments
 
     public int StftProcThreads { get; }
 
+    public int MelProcThreads { get; }
+
     public int PeakProcThreads { get; }
 
     public int StftFileThreads { get; }
+
+    public int MelFileThreads { get; }
 
     public int PeakFileThreads { get; }
 

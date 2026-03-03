@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Cli.Shared\Cli.Shared.csproj" />
+    <ProjectReference Include="..\MelSpectrogramAnalyzer.Core\MelSpectrogramAnalyzer.Core.csproj" />
     <ProjectReference Include="..\PeakAnalyzer.Core\PeakAnalyzer.Core.csproj" />
     <ProjectReference Include="..\STFTAnalyzer.Core\STFTAnalyzer.Core.csproj" />
   </ItemGroup>
