@@ -12,4 +12,10 @@ internal interface IAnalysisStoreFactory
         string anchorColumnName,
         int binCount,
         SqliteConflictMode conflictMode);
+
+    public IMelSpectrogramAnalysisStore CreateMelSpectrogramStore(
+        CommandLineArguments arguments,
+        string anchorColumnName,
+        int melBinCount,
+        SqliteConflictMode conflictMode);
 }

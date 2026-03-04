@@ -20,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\MelSpectrogramAnalyzer.Core\MelSpectrogramAnalyzer.Core.csproj" />
     <ProjectReference Include="..\SoundAnalyzer.Cli\SoundAnalyzer.Cli.csproj" />
     <ProjectReference Include="..\PeakAnalyzer.Core\PeakAnalyzer.Core.csproj" />
     <ProjectReference Include="..\STFTAnalyzer.Core\STFTAnalyzer.Core.csproj" />

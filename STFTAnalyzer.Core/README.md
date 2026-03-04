@@ -13,6 +13,15 @@
 - `StftAnalysisSummary`
 - `IStftAnalysisPointWriter`
 - `StftAnalysisException`
+- `StftInferenceWaveformFeatureUseCase`
+- `StftInferenceFileFeatureUseCase`
+- `StftInferenceWaveformRequest`
+- `StftInferenceFileRequest`
+- `IStftInferenceNowTensorPointWriter`
+- `IStftInferenceFramePointWriter`
+- `StftInferenceNowTensorPoint`
+- `StftInferenceFramePoint`
+- `StftInferenceFeatureSummary`
 
 ## 入力モデル（sample基準）
 
@@ -39,6 +48,28 @@
 - FFT 入力には Hann 窓を適用します。
 - 正周波数 `0..Nyquist` を `binCount` 等分し、帯域平均 magnitude を dB 化します。
 - `min-limit-db` で下限クランプします。
+
+## Inference互換特徴抽出API（追加）
+
+既存の STFT 解析 API を変更せず、Inference 前処理互換の特徴抽出 API を追加しています。
+
+- 入力契約:
+  - waveform 入力: `StftInferenceWaveformRequest`（`float[][]`）
+  - file 入力: `StftInferenceFileRequest`（`ffmpeg/ffprobe` 経由で読み込み）
+- パラメータ:
+  - `sampleRate`, `segmentDurationSeconds`, `nowMsList`
+  - `nFft`, `winLength`, `hopLength`, `power`
+  - `center`, `padMode (reflect|constant-zero)`
+  - `emitLinear`, `emitDb`, `sanitizeMinDbfs`
+- 出力契約:
+  - Now単位テンソル: `StftInferenceNowTensorPoint` (`channels x freq_bins x frames`)
+  - Frame単位ストリーム: `StftInferenceFramePoint` (`channels x freq_bins`)
+- dB 変換規約:
+  - `dB = (20 / power) * log10(linear)`
+  - `linear <= 0` は `-Infinity`（sanitize 有効時は `sanitizeMinDbfs` へクランプ）
+- チャネル処理:
+  - `DuplicateMonoAndTakeFirstTwo`（mono複製 / 3ch以上は先頭2ch）
+  - `StrictTwoChannels`（厳密2ch要求）
 
 ## バリデーション
 

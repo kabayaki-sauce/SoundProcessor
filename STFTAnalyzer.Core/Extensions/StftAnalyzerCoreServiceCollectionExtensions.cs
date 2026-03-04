@@ -12,6 +12,8 @@ public static class StftAnalyzerCoreServiceCollectionExtensions
 
         services.AddAudioProcessor();
         services.AddSingleton<StftAnalysisUseCase>();
+        services.AddSingleton<StftInferenceWaveformFeatureUseCase>();
+        services.AddSingleton<StftInferenceFileFeatureUseCase>();
 
         return services;
     }

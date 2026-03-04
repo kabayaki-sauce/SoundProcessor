@@ -32,10 +32,17 @@ internal static partial class CommandLineParser
         string? tableNameOverride = null;
         string? minLimitDbText = null;
         string? binCountText = null;
+        string? melBinCountText = null;
+        string? melFminHzText = null;
+        string? melFmaxHzText = null;
+        string? melScaleText = null;
+        string? melPowerText = null;
         string? ffmpegPath = null;
         string? stftProcThreadsText = null;
+        string? melProcThreadsText = null;
         string? peakProcThreadsText = null;
         string? stftFileThreadsText = null;
+        string? melFileThreadsText = null;
         string? peakFileThreadsText = null;
         string? insertQueueSizeText = null;
         string? sqliteBatchRowCountText = null;
@@ -214,6 +221,56 @@ internal static partial class CommandLineParser
                 continue;
             }
 
+            if (MatchesOption(token, ConsoleTexts.MelBinCountOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    melBinCountText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.MelFminHzOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    melFminHzText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.MelFmaxHzOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    melFmaxHzText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.MelScaleOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    melScaleText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.MelPowerOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    melPowerText = value;
+                }
+
+                continue;
+            }
+
             if (MatchesOption(token, ConsoleTexts.FfmpegPathOption))
             {
                 if (TryReadOptionValue(args, ref i, token, errors, out string value))
@@ -234,6 +291,16 @@ internal static partial class CommandLineParser
                 continue;
             }
 
+            if (MatchesOption(token, ConsoleTexts.MelProcThreadsOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    melProcThreadsText = value;
+                }
+
+                continue;
+            }
+
             if (MatchesOption(token, ConsoleTexts.PeakProcThreadsOption))
             {
                 if (TryReadOptionValue(args, ref i, token, errors, out string value))
@@ -249,6 +316,16 @@ internal static partial class CommandLineParser
                 if (TryReadOptionValue(args, ref i, token, errors, out string value))
                 {
                     stftFileThreadsText = value;
+                }
+
+                continue;
+            }
+
+            if (MatchesOption(token, ConsoleTexts.MelFileThreadsOption))
+            {
+                if (TryReadOptionValue(args, ref i, token, errors, out string value))
+                {
+                    melFileThreadsText = value;
                 }
 
                 continue;
@@ -579,7 +656,8 @@ internal static partial class CommandLineParser
         string modeValue = modeText!;
         bool isPeakMode = string.Equals(modeValue, ConsoleTexts.PeakAnalysisMode, StringComparison.OrdinalIgnoreCase);
         bool isStftMode = string.Equals(modeValue, ConsoleTexts.StftAnalysisMode, StringComparison.OrdinalIgnoreCase);
-        if (!isPeakMode && !isStftMode)
+        bool isMelMode = string.Equals(modeValue, ConsoleTexts.MelSpectrogramAnalysisMode, StringComparison.OrdinalIgnoreCase);
+        if (!isPeakMode && !isStftMode && !isMelMode)
         {
             errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidModePrefix, modeValue));
         }
@@ -633,6 +711,74 @@ internal static partial class CommandLineParser
             }
         }
 
+        int melBinCount = ConsoleTexts.DefaultMelBinCount;
+        double melFminHz = ConsoleTexts.DefaultMelFminHz;
+        double melFmaxHz = ConsoleTexts.DefaultMelFmaxHz;
+        MelScaleOption melScale = MelScaleOption.Slaney;
+        int melPower = ConsoleTexts.DefaultMelPower;
+        if (isMelMode)
+        {
+            if (!string.IsNullOrWhiteSpace(melBinCountText))
+            {
+                if (!TryParsePositiveInt(melBinCountText!, out int parsedMelBinCount))
+                {
+                    errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidIntegerPrefix, melBinCountText!));
+                }
+                else
+                {
+                    melBinCount = parsedMelBinCount;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(melFminHzText))
+            {
+                if (!TryParseFiniteDouble(melFminHzText!, out double parsedMelFminHz))
+                {
+                    errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidNumberPrefix, melFminHzText!));
+                }
+                else
+                {
+                    melFminHz = parsedMelFminHz;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(melFmaxHzText))
+            {
+                if (!TryParseFiniteDouble(melFmaxHzText!, out double parsedMelFmaxHz))
+                {
+                    errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidNumberPrefix, melFmaxHzText!));
+                }
+                else
+                {
+                    melFmaxHz = parsedMelFmaxHz;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(melScaleText))
+            {
+                if (!TryParseMelScale(melScaleText!, out MelScaleOption parsedMelScale))
+                {
+                    errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidMelScalePrefix, melScaleText!));
+                }
+                else
+                {
+                    melScale = parsedMelScale;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(melPowerText))
+            {
+                if (!TryParsePositiveInt(melPowerText!, out int parsedMelPower))
+                {
+                    errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidIntegerPrefix, melPowerText!));
+                }
+                else
+                {
+                    melPower = parsedMelPower;
+                }
+            }
+        }
+
         int stftProcThreads = DefaultProcessingThreads;
         if (!string.IsNullOrWhiteSpace(stftProcThreadsText))
         {
@@ -643,6 +789,19 @@ internal static partial class CommandLineParser
             else
             {
                 stftProcThreads = parsedStftProcThreads;
+            }
+        }
+
+        int melProcThreads = DefaultProcessingThreads;
+        if (!string.IsNullOrWhiteSpace(melProcThreadsText))
+        {
+            if (!TryParsePositiveInt(melProcThreadsText!, out int parsedMelProcThreads))
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidIntegerPrefix, melProcThreadsText!));
+            }
+            else
+            {
+                melProcThreads = parsedMelProcThreads;
             }
         }
 
@@ -669,6 +828,19 @@ internal static partial class CommandLineParser
             else
             {
                 stftFileThreads = parsedStftFileThreads;
+            }
+        }
+
+        int melFileThreads = DefaultFileThreads;
+        if (!string.IsNullOrWhiteSpace(melFileThreadsText))
+        {
+            if (!TryParsePositiveInt(melFileThreadsText!, out int parsedMelFileThreads))
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.InvalidIntegerPrefix, melFileThreadsText!));
+            }
+            else
+            {
+                melFileThreads = parsedMelFileThreads;
             }
         }
 
@@ -779,6 +951,107 @@ internal static partial class CommandLineParser
             {
                 AddModeWarning(warnings, ConsoleTexts.PeakFileThreadsOption);
             }
+
+            if (!string.IsNullOrWhiteSpace(melBinCountText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.MelBinCountOption);
+            }
+
+            if (!string.IsNullOrWhiteSpace(melFminHzText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.MelFminHzOption);
+            }
+
+            if (!string.IsNullOrWhiteSpace(melFmaxHzText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.MelFmaxHzOption);
+            }
+
+            if (!string.IsNullOrWhiteSpace(melScaleText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.MelScaleOption);
+            }
+
+            if (!string.IsNullOrWhiteSpace(melPowerText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.MelPowerOption);
+            }
+
+            if (!string.IsNullOrWhiteSpace(melProcThreadsText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.MelProcThreadsOption);
+            }
+
+            if (!string.IsNullOrWhiteSpace(melFileThreadsText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.MelFileThreadsOption);
+            }
+        }
+
+        if (isMelMode)
+        {
+            if (stems is not null)
+            {
+                AddModeWarning(warnings, ConsoleTexts.StemsOption);
+                stems = null;
+            }
+
+            if (melFminHz < 0)
+            {
+                errors.Add(ConsoleTexts.WithInvariantValue(ConsoleTexts.InvalidMelFminHzPrefix, melFminHz));
+            }
+
+            if (melFmaxHz <= 0)
+            {
+                errors.Add(ConsoleTexts.WithInvariantValue(ConsoleTexts.InvalidMelFmaxHzPrefix, melFmaxHz));
+            }
+
+            if (melFmaxHz <= melFminHz)
+            {
+                errors.Add(ConsoleTexts.WithValue(
+                    ConsoleTexts.InvalidMelFrequencyRangePrefix,
+                    string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"fmin={melFminHz}, fmax={melFmaxHz}")));
+            }
+
+            if (melPower is not 1 and not 2)
+            {
+                errors.Add(ConsoleTexts.WithValue(
+                    ConsoleTexts.InvalidMelPowerPrefix,
+                    melPower.ToString(CultureInfo.InvariantCulture)));
+            }
+
+            if (usesSampleUnit && !targetSamplingHz.HasValue)
+            {
+                errors.Add(ConsoleTexts.WithValue(ConsoleTexts.MissingOptionPrefix, ConsoleTexts.TargetSamplingOption));
+            }
+
+            if (!string.IsNullOrWhiteSpace(binCountText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.BinCountOption);
+                binCount = null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(stftProcThreadsText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.StftProcThreadsOption);
+            }
+
+            if (!string.IsNullOrWhiteSpace(stftFileThreadsText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.StftFileThreadsOption);
+            }
+
+            if (!string.IsNullOrWhiteSpace(peakProcThreadsText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.PeakProcThreadsOption);
+            }
+
+            if (!string.IsNullOrWhiteSpace(peakFileThreadsText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.PeakFileThreadsOption);
+            }
         }
 
         if (isPeakMode)
@@ -787,6 +1060,31 @@ internal static partial class CommandLineParser
             {
                 AddModeWarning(warnings, ConsoleTexts.BinCountOption);
                 binCount = null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(melBinCountText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.MelBinCountOption);
+            }
+
+            if (!string.IsNullOrWhiteSpace(melFminHzText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.MelFminHzOption);
+            }
+
+            if (!string.IsNullOrWhiteSpace(melFmaxHzText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.MelFmaxHzOption);
+            }
+
+            if (!string.IsNullOrWhiteSpace(melScaleText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.MelScaleOption);
+            }
+
+            if (!string.IsNullOrWhiteSpace(melPowerText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.MelPowerOption);
             }
 
             if (deleteCurrent)
@@ -803,7 +1101,7 @@ internal static partial class CommandLineParser
 
             if (usesSampleUnit)
             {
-                errors.Add(ConsoleTexts.SampleUnitOnlyForStftText);
+                errors.Add(ConsoleTexts.SampleUnitOnlyForStftOrMelText);
             }
 
             if (targetSamplingText is not null)
@@ -821,9 +1119,31 @@ internal static partial class CommandLineParser
             {
                 AddModeWarning(warnings, ConsoleTexts.StftFileThreadsOption);
             }
+
+            if (!string.IsNullOrWhiteSpace(melProcThreadsText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.MelProcThreadsOption);
+            }
+
+            if (!string.IsNullOrWhiteSpace(melFileThreadsText))
+            {
+                AddModeWarning(warnings, ConsoleTexts.MelFileThreadsOption);
+            }
         }
 
-        string defaultTableName = isStftMode ? ConsoleTexts.DefaultStftTableName : ConsoleTexts.DefaultPeakTableName;
+        string defaultTableName;
+        if (isStftMode)
+        {
+            defaultTableName = ConsoleTexts.DefaultStftTableName;
+        }
+        else if (isMelMode)
+        {
+            defaultTableName = ConsoleTexts.DefaultMelTableName;
+        }
+        else
+        {
+            defaultTableName = ConsoleTexts.DefaultPeakTableName;
+        }
         string tableName = string.IsNullOrWhiteSpace(tableNameOverride)
             ? defaultTableName
             : tableNameOverride!.Trim();
@@ -860,7 +1180,19 @@ internal static partial class CommandLineParser
         }
 
         StorageBackend backend = postgres ? StorageBackend.Postgres : StorageBackend.Sqlite;
-        string mode = isStftMode ? ConsoleTexts.StftAnalysisMode : ConsoleTexts.PeakAnalysisMode;
+        string mode;
+        if (isStftMode)
+        {
+            mode = ConsoleTexts.StftAnalysisMode;
+        }
+        else if (isMelMode)
+        {
+            mode = ConsoleTexts.MelSpectrogramAnalysisMode;
+        }
+        else
+        {
+            mode = ConsoleTexts.PeakAnalysisMode;
+        }
         CommandLineArguments arguments = new(
             windowLength.Value,
             windowLength.Unit,
@@ -877,12 +1209,19 @@ internal static partial class CommandLineParser
             skipDuplicate,
             minLimitDb,
             binCount,
+            melBinCount,
+            melFminHz,
+            melFmaxHz,
+            melScale,
+            melPower,
             deleteCurrent,
             recursive,
             ffmpegPath,
             stftProcThreads,
+            melProcThreads,
             peakProcThreads,
             stftFileThreads,
+            melFileThreads,
             peakFileThreads,
             insertQueueSize,
             sqliteFastMode,
@@ -1030,6 +1369,47 @@ internal static partial class CommandLineParser
 
         return int.TryParse(match.Groups["value"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out samplingHz)
             && samplingHz > 0;
+    }
+
+    private static bool TryParseFiniteDouble(string text, out double value)
+    {
+        value = default;
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        if (!double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+        {
+            return false;
+        }
+
+        return !double.IsNaN(value) && !double.IsInfinity(value);
+    }
+
+    private static bool TryParseMelScale(string text, out MelScaleOption melScale)
+    {
+        melScale = default;
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        if (text.Equals("slaney", StringComparison.OrdinalIgnoreCase))
+        {
+            melScale = MelScaleOption.Slaney;
+            return true;
+        }
+
+        if (text.Equals("htk", StringComparison.OrdinalIgnoreCase))
+        {
+            melScale = MelScaleOption.Htk;
+            return true;
+        }
+
+        return false;
     }
 
     private static bool TryParseIntegralPositiveLong(double value, out long integral)
