@@ -19,6 +19,11 @@ AudioProcessor は、オーディオ解析・変換ツール群を提供する .
   - `--mel-scale slaney|htk`, `--mel-power 1|2` を切替可能
   - `--mel-fmax-hz` が Nyquist を超える場合は自動クランプし、`stderr` の warnings JSON へ集約出力
   - `--mel-proc-threads` / `--mel-file-threads` / `--insert-queue-size` で並列・キュー制御
+- Inference互換特徴抽出API（CLI変更なし）
+  - `STFTAnalyzer.Core` / `MelSpectrogramAnalyzer.Core` に waveform入力 / file入力の双方を追加
+  - `center` / `pad_mode` / `n_fft` / `win_length` / `hop_length` / `power` / `mel_scale` / `mel_norm` / `sanitize(min_dbfs)` を明示指定可能
+  - 出力は `Now単位テンソル(ch x bins x frames)` と `Frame単位ストリーム(ch x bins)` の Writer 契約を提供
+  - `linear` と `dB` を同時出力可能（`dB = (20/power) * log10(linear)`）
 - `--show-progress` は interactive な `pwsh/cmd` で、Songs/Threads/Queue の詳細進捗を `stderr` に表示（Thread行は単一ゲージで Insert=緑 / Analyze=白 / 未処理=斑点）
 
 ## プロジェクト構成
@@ -30,7 +35,7 @@ AudioProcessor は、オーディオ解析・変換ツール群を提供する .
 | `AudioSplitter.Core` | Library | 無音分割ドメイン、境界計算、分割ユースケース |
 | `AudioSplitter.Cli` | CLI | 無音分割のコマンドライン実行層 |
 | `PeakAnalyzer.Core` | Library | hop/window ベースのピーク dB 窓解析コア |
-| `STFTAnalyzer.Core` | Library | hop/window ベースの短時間FFT band解析コア |
+| `STFTAnalyzer.Core` | Library | hop/window ベースの短時間FFT band解析コア + Inference互換 STFT 特徴抽出API |
 | `SoundAnalyzer.Cli` | CLI | ディレクトリ一括解析と SQLite/PostgreSQL 永続化 |
 | `AudioProcessor.Tests` | Test | `AudioProcessor` の単体テスト |
 | `Cli.Shared.Tests` | Test | `Cli.Shared` の単体テスト |
@@ -38,7 +43,7 @@ AudioProcessor は、オーディオ解析・変換ツール群を提供する .
 | `AudioSplitter.Cli.Tests` | Test | `AudioSplitter.Cli` の単体テスト |
 | `PeakAnalyzer.Core.Tests` | Test | `PeakAnalyzer.Core` の単体テスト |
 | `STFTAnalyzer.Core.Tests` | Test | `STFTAnalyzer.Core` の単体テスト |
-| `MelSpectrogramAnalyzer.Core` | Library | hop/window ベースの Mel Spectrogram 解析コア |
+| `MelSpectrogramAnalyzer.Core` | Library | hop/window ベースの Mel Spectrogram 解析コア + Inference互換 Mel 特徴抽出API |
 | `MelSpectrogramAnalyzer.Core.Tests` | Test | `MelSpectrogramAnalyzer.Core` の単体テスト |
 | `SoundAnalyzer.Cli.Tests` | Test | `SoundAnalyzer.Cli` の単体テスト |
 

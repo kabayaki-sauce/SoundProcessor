@@ -12,6 +12,8 @@ public static class MelSpectrogramAnalyzerCoreServiceCollectionExtensions
 
         services.AddAudioProcessor();
         services.AddSingleton<MelSpectrogramAnalysisUseCase>();
+        services.AddSingleton<MelSpectrogramInferenceWaveformFeatureUseCase>();
+        services.AddSingleton<MelSpectrogramInferenceFileFeatureUseCase>();
 
         return services;
     }

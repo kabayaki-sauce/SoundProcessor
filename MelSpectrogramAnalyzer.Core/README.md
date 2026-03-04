@@ -14,6 +14,15 @@
 - `MelSpectrogramAnalysisSummary`
 - `IMelSpectrogramAnalysisPointWriter`
 - `MelSpectrogramAnalysisException`
+- `MelSpectrogramInferenceWaveformFeatureUseCase`
+- `MelSpectrogramInferenceFileFeatureUseCase`
+- `MelSpectrogramInferenceWaveformRequest`
+- `MelSpectrogramInferenceFileRequest`
+- `IMelSpectrogramInferenceNowTensorPointWriter`
+- `IMelSpectrogramInferenceFramePointWriter`
+- `MelSpectrogramInferenceNowTensorPoint`
+- `MelSpectrogramInferenceFramePoint`
+- `MelSpectrogramInferenceFeatureSummary`
 
 ## 入力モデル（sample基準）
 
@@ -46,6 +55,30 @@
 - `melPower=1` は magnitude 基準、`melPower=2` は power 基準です。
 - dB 変換は `melPower=1 => 20*log10`, `melPower=2 => 10*log10` を適用します。
 - `min-limit-db` で下限クランプします。
+
+## Inference互換特徴抽出API（追加）
+
+既存の Mel Spectrogram 解析 API を変更せず、Inference 前処理互換の特徴抽出 API を追加しています。
+
+- 入力契約:
+  - waveform 入力: `MelSpectrogramInferenceWaveformRequest`（`float[][]`）
+  - file 入力: `MelSpectrogramInferenceFileRequest`（`ffmpeg/ffprobe` 経由で読み込み）
+- パラメータ:
+  - `sampleRate`, `segmentDurationSeconds`, `nowMsList`
+  - `nFft`, `winLength`, `hopLength`, `nMels`, `fMinHz`, `fMaxHz`, `melPower`
+  - `melScale (slaney|htk)`, `melNorm (none|slaney)`
+  - `center`, `padMode (reflect|constant-zero)`
+  - `leftPadNoiseEnabled`, `leftPadNoiseDb`
+  - `emitLinear`, `emitDb`, `sanitizeMinDbfs`
+- 出力契約:
+  - Now単位テンソル: `MelSpectrogramInferenceNowTensorPoint` (`channels x mel_bins x frames`)
+  - Frame単位ストリーム: `MelSpectrogramInferenceFramePoint` (`channels x mel_bins`)
+- dB 変換規約:
+  - `dB = (20 / melPower) * log10(linear)`
+  - `linear <= 0` は `-Infinity`（sanitize 有効時は `sanitizeMinDbfs` へクランプ）
+- 左パディング:
+  - `leftPadNoiseEnabled=true` 時は不足左側へガウスノイズを毎回ランダム生成して注入
+  - `leftPadNoiseEnabled=false` 時はゼロ埋め
 
 ## バリデーション
 
